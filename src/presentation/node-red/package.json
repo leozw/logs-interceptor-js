@@ -1,0 +1,23 @@
+{
+  "name": "node-red-contrib-logs-interceptor",
+  "version": "--dry-run",
+  "description": "Node-RED node for logs-interceptor",
+  "node-red": {
+    "nodes": {
+      "logs-interceptor": "logs-interceptor-node.js"
+    }
+  },
+  "keywords": [
+    "node-red",
+    "logging",
+    "loki",
+    "logs-interceptor"
+  ],
+  "author": "Leonardo Zwirtes",
+  "license": "MIT",
+  "dependencies": {
+    "logs-interceptor": "^--dry-run"
+  }
+}
+
+

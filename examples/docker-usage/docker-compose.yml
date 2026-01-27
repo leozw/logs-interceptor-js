@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  my-app:
+    build: .
+    environment:
+      # Configure Logs Interceptor via Env Vars
+      - LOGS_INTERCEPTOR_ENABLED=true
+      - LOGS_INTERCEPTOR_APP_NAME=billing-service
+      - LOGS_INTERCEPTOR_URL=http://loki:3100/loki/api/v1/push
+      - LOGS_INTERCEPTOR_TENANT_ID=tenant_1
+      
+      # 🚀 PERFORMANCE TUNING (High Volume Config)
+      - LOGS_INTERCEPTOR_COMPRESSION=snappy
+      - LOGS_INTERCEPTOR_USE_WORKERS=true
+      - LOGS_INTERCEPTOR_BUFFER_SIZE=2000
+      - LOGS_INTERCEPTOR_FLUSH_INTERVAL=2000
+      - LOGS_INTERCEPTOR_MAX_MEMORY_MB=512
+      
+      # Inject the interceptor
+      - NODE_OPTIONS=--require logs-interceptor/preload
+    
+    # Simulating a Loki instance for the example
+    depends_on:
+      - loki
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml

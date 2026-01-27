@@ -1,0 +1,65 @@
+{
+  "name": "logs-interceptor",
+  "version": "2.1.0",
+  "description": "High-performance, production-ready log interceptor for Node.js applications with Loki integration. Built with Clean Architecture principles. Supports Node.js, Browser, and Node-RED.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "preload.js"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "dev": "ts-node src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "loki",
+    "logging",
+    "observability",
+    "console-interceptor",
+    "telemetry",
+    "grafana",
+    "node-red",
+    "clean-architecture",
+    "typescript",
+    "enterprise"
+  ],
+  "author": "Leonardo Zwirtes",
+  "license": "MIT",
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "dotenv": "^16.6.1",
+    "protobufjs": "^7.2.6",
+    "snappy": "^7.2.2",
+    "undici": "^6.6.0",
+    "winston-transport": "^4.9.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^24.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.35.0",
+    "@typescript-eslint/parser": "^8.35.0",
+    "eslint": "^9.29.0",
+    "jest": "^30.0.3",
+    "morgan": "^1.10.1",
+    "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.54.0",
+    "winston": "^3.19.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leozw/logs-interceptor.git"
+  }
+}

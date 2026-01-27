@@ -1,0 +1,2 @@
+{"entry":{"id":"6fed61a9d0341baa","timestamp":"2026-01-27T19:52:05.504Z","level":"error","message":"Test error 1","context":{"err":"something wrong"},"labels":{"app":"verify-app","version":"1.0.0","environment":"production","level":"error","hostname":"Leonardos-Mac-mini.local","pid":"85254"},"metadata":{"memoryUsage":187.29341888427734,"cpuUsage":2.015715}},"reason":"no such Type or Enum 'google.protobuf.Timestamp' in Type .logproto.EntryAdapter","timestamp":1769543525507,"retryCount":0}
+instgrumentation
