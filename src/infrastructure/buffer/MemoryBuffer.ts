@@ -2,8 +2,8 @@
  * Infrastructure: Memory Buffer Implementation
  * Enhanced with efficient memory tracking
  */
-import { ILogBuffer, BufferMetrics } from '../../domain/interfaces/ILogBuffer';
 import { LogEntry } from '../../domain/entities/LogEntry';
+import { BufferMetrics, ILogBuffer } from '../../domain/interfaces/ILogBuffer';
 import { MemoryTracker } from '../memory/MemoryTracker';
 
 export interface MemoryBufferConfig {
@@ -38,11 +38,6 @@ export class MemoryBuffer implements ILogBuffer {
   }
 
   add(entry: LogEntry): void {
-    // Remove old entries if buffer is full
-    if (this.entries.length >= this.config.maxSize) {
-      this.removeOldEntries();
-    }
-
     this.entries.push(entry);
     this.memoryTracker.addEntry(entry);
 
@@ -52,13 +47,36 @@ export class MemoryBuffer implements ILogBuffer {
       // Force flush if memory threshold exceeded
       if (this.config.autoFlush) {
         this.scheduleFlush();
+      } else {
+        // If auto-flush is off and we are out of memory, we MUST drop old entries to prevent crash
+        this.removeOldEntries();
       }
     }
 
-    // Auto-flush if buffer is full
-    if (this.entries.length >= this.config.maxSize && this.config.autoFlush) {
+    // Ensure a flush timer is running so logs don't sit forever
+    if (this.config.autoFlush) {
       this.scheduleFlush();
     }
+
+    // Auto-flush immediately if buffer is full (Burst Mode)
+    if (this.entries.length >= this.config.maxSize && this.config.autoFlush) {
+      this.triggerImmediateFlush();
+    }
+  }
+
+  private triggerImmediateFlush(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+
+    // Use setImmediate to allow current event loop tick to finish
+    // and prevent potential recursion issues
+    setImmediate(() => {
+      if (this.flushCallback && this.entries.length > 0) {
+        this.flushCallback();
+      }
+    });
   }
 
   flush(): LogEntry[] {

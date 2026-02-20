@@ -1,6 +1,6 @@
 {
   "name": "logs-interceptor",
-  "version": "2.1.0",
+  "version": "2.1.6",
   "description": "High-performance, production-ready log interceptor for Node.js applications with Loki integration. Built with Clean Architecture principles. Supports Node.js, Browser, and Node-RED.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -56,7 +56,7 @@
     "winston": "^3.19.0"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=18.0.0"
   },
   "repository": {
     "type": "git",

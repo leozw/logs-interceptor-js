@@ -15,7 +15,7 @@ export interface ICircuitBreaker {
   /**
    * Record a failed operation
    */
-  recordFailure(): void;
+  recordFailure(error?: Error): void;
 
   /**
    * Get current circuit breaker state
@@ -36,6 +36,7 @@ export interface CircuitBreakerState {
   readonly successCount: number;
   readonly lastFailure?: number;
   readonly nextAttempt?: number;
+  readonly lastError?: string;
 }
 
 

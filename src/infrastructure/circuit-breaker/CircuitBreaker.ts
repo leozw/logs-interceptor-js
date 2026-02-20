@@ -2,9 +2,9 @@
  * Infrastructure: Circuit Breaker Implementation
  */
 import {
-  ICircuitBreaker,
   CircuitBreakerState,
   CircuitBreakerStateType,
+  ICircuitBreaker,
 } from '../../domain/interfaces/ICircuitBreaker';
 
 export interface CircuitBreakerConfig {
@@ -20,8 +20,9 @@ export class CircuitBreaker implements ICircuitBreaker {
   private successCount = 0;
   private lastFailure?: number;
   private nextAttempt?: number;
+  private lastError?: string;
 
-  constructor(private readonly config: CircuitBreakerConfig) {}
+  constructor(private readonly config: CircuitBreakerConfig) { }
 
   async execute<T>(operation: () => Promise<T>): Promise<T> {
     if (!this.config.enabled) {
@@ -37,7 +38,7 @@ export class CircuitBreaker implements ICircuitBreaker {
       this.recordSuccess();
       return result;
     } catch (error) {
-      this.recordFailure();
+      this.recordFailure(error as Error);
       throw error;
     }
   }
@@ -49,15 +50,20 @@ export class CircuitBreaker implements ICircuitBreaker {
         this.state = 'closed';
         this.failures = 0;
         this.successCount = 0;
+        this.lastError = undefined;
       }
     } else if (this.state === 'closed') {
       this.failures = 0;
+      this.lastError = undefined;
     }
   }
 
-  recordFailure(): void {
+  recordFailure(error?: Error): void {
     this.failures++;
     this.lastFailure = Date.now();
+    if (error) {
+      this.lastError = error.message;
+    }
 
     if (this.failures >= this.config.failureThreshold) {
       this.state = 'open';
@@ -72,6 +78,7 @@ export class CircuitBreaker implements ICircuitBreaker {
       successCount: this.successCount,
       lastFailure: this.lastFailure,
       nextAttempt: this.nextAttempt,
+      lastError: this.lastError,
     };
   }
 

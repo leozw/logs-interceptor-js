@@ -2,6 +2,7 @@
  * Application Service: LogService
  * Orchestrates log processing
  */
+import { trace } from '@opentelemetry/api';
 import * as crypto from 'crypto';
 import * as os from 'os';
 import { performance } from 'perf_hooks';
@@ -122,6 +123,8 @@ export class LogService implements ILogger {
     this.info(`[EVENT] ${eventName}`, properties);
   }
 
+
+
   private createLogEntry(
     level: LogLevel,
     message: string,
@@ -148,6 +151,11 @@ export class LogService implements ILogger {
       {} as Record<string, string>
     );
 
+    // 🔥 AUTOMATIC TRACE CORRELATION
+    const spanContext = trace.getActiveSpan()?.spanContext();
+    const traceId = spanContext?.traceId || (dynamicLabels.trace_id as string);
+    const spanId = spanContext?.spanId || (dynamicLabels.span_id as string);
+
     return new LogEntryEntity(
       logId,
       new Date().toISOString(),
@@ -157,8 +165,8 @@ export class LogService implements ILogger {
         ...asyncContext,
         ...context,
       },
-      dynamicLabels.trace_id,
-      dynamicLabels.span_id,
+      traceId,
+      spanId,
       dynamicLabels.request_id,
       {
         app: this.config.appName,
@@ -239,8 +247,6 @@ export class LogService implements ILogger {
     return {
       healthy:
         this.metrics.errorCount < 10 &&
-        Date.now() - this.metrics.lastFlushTime < 30000 &&
-        bufferMetrics.size / bufferMetrics.maxSize < 0.9 &&
         transportHealth.healthy,
       lastSuccessfulFlush: this.metrics.lastFlushTime,
       consecutiveErrors: this.metrics.errorCount,
@@ -248,6 +254,7 @@ export class LogService implements ILogger {
       uptime: Date.now() - this.startTime,
       memoryUsageMB: this.metrics.memoryUsage,
       circuitBreakerState: transportHealth.healthy ? 'closed' : 'open',
+      lastError: transportHealth.errorMessage,
     };
   }
 

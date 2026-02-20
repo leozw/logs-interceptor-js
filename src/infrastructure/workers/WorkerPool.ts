@@ -7,7 +7,7 @@ import { Worker } from 'worker_threads';
 
 interface Task<T = any> {
   id: string;
-  type: 'format' | 'compress' | 'process';
+  type: 'format' | 'compress' | 'process' | 'encodeProtobufAndCompress';
   data: any;
   options?: any;
   resolve: (value: T) => void;
@@ -39,6 +39,7 @@ export class WorkerPool {
   private totalTasks = 0;
   private completedTasks = 0;
   private failedTasks = 0;
+  private destroyed = false;
 
   constructor(config: WorkerPoolConfig = {}) {
     this.maxWorkers = config.maxWorkers ?? Math.max(2, Math.floor(require('os').cpus().length / 2));
@@ -67,6 +68,7 @@ export class WorkerPool {
     });
 
     worker.on('exit', (code) => {
+      if (this.destroyed) return;
       if (code !== 0) {
         console.warn(`[WorkerPool] Worker exited with code ${code}`);
         this.replaceWorker(worker);
@@ -97,7 +99,7 @@ export class WorkerPool {
   }
 
   async execute<T = any>(
-    type: 'format' | 'compress' | 'process',
+    type: 'format' | 'compress' | 'process' | 'encodeProtobufAndCompress',
     data: any,
     options?: any
   ): Promise<T> {
@@ -175,6 +177,7 @@ export class WorkerPool {
   }
 
   async destroy(): Promise<void> {
+    this.destroyed = true;
     // Clear queue
     this.queue.forEach(task => {
       if (task.timeout) clearTimeout(task.timeout);

@@ -2,11 +2,11 @@
  * Infrastructure: File-based Dead Letter Queue
  * Persists failed log entries to disk for later retry
  */
-import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
-import { LogEntry } from '../../domain/entities/LogEntry';
-import { writeFile, appendFile, readFile, unlink, mkdir } from 'fs/promises';
-import { join } from 'path';
 import { existsSync } from 'fs';
+import { appendFile, mkdir, readFile, unlink } from 'fs/promises';
+import { join } from 'path';
+import { LogEntry } from '../../domain/entities/LogEntry';
+import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
 
 interface DLQEntry {
   entry: LogEntry;
@@ -32,7 +32,7 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
   constructor(config: FileDLQConfig = {}) {
     const basePath = config.basePath || process.cwd();
     const dlqDir = join(basePath, '.logs-interceptor-dlq');
-    
+
     // Ensure directory exists
     if (!existsSync(dlqDir)) {
       mkdir(dlqDir, { recursive: true }).catch(() => {
@@ -47,58 +47,41 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
   }
 
   async add(entry: LogEntry, reason: string): Promise<void> {
-    const dlqEntry: DLQEntry = {
-      entry,
-      reason,
-      timestamp: Date.now(),
-      retryCount: 0,
-    };
+    return this.addBatch([entry], reason);
+  }
 
-    // Add to memory queue
-    this.queue.push(dlqEntry);
+  async addBatch(entries: LogEntry[], reason: string): Promise<void> {
+    if (entries.length === 0) return;
 
-    // Trim if exceeds max size
-    if (this.queue.length > this.maxSize) {
-      const removed = this.queue.shift();
-      if (removed) {
-        // Persist removed entry to disk
-        await this.persistToDisk(removed);
-      }
+    const timestamp = Date.now();
+    const batchData: string[] = [];
+
+    for (const entry of entries) {
+      const dlqEntry: DLQEntry = {
+        entry,
+        reason,
+        timestamp,
+        retryCount: 0,
+      };
+
+      // Add to memory queue
+      this.queue.push(dlqEntry);
+      batchData.push(JSON.stringify(dlqEntry));
     }
 
-    // Persist to disk asynchronously (don't block)
-    this.persistToDisk(dlqEntry).catch(error => {
-      console.warn('[FileDLQ] Failed to persist entry:', error);
-    });
+    // Persist to disk safely (awaiting ensures data is safe before yielding)
+    await this.persistBatchToDisk(batchData);
+
+    // Trim memory queue if needed
+    if (this.queue.length > this.maxSize) {
+      this.queue = this.queue.slice(this.queue.length - this.maxSize);
+    }
   }
 
   async flush(): Promise<number> {
-    if (this.queue.length === 0) {
-      return 0;
-    }
-
-    const entries = [...this.queue];
-    this.queue = [];
-
-    // Try to resend entries
-    let flushed = 0;
-    for (const dlqEntry of entries) {
-      if (dlqEntry.retryCount >= this.maxRetries) {
-        // Max retries reached, keep in DLQ
-        this.queue.push(dlqEntry);
-        continue;
-      }
-
-      // Here you would attempt to resend
-      // For now, we'll just mark as attempted
-      dlqEntry.retryCount++;
-      
-      // In a real implementation, you'd call the transport here
-      // For now, we'll simulate success after retry
-      flushed++;
-    }
-
-    return flushed;
+    // In a passive DLQ, flush doesn't automatically resend.
+    // Use recover() or external scripts to reprocess DLQ files.
+    return 0;
   }
 
   size(): number {
@@ -122,10 +105,10 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
       .map(({ entry, reason, timestamp }) => ({ entry, reason, timestamp }));
   }
 
-  private async persistToDisk(entry: DLQEntry): Promise<void> {
+  private async persistBatchToDisk(lines: string[]): Promise<void> {
     try {
-      const line = JSON.stringify(entry) + '\n';
-      await appendFile(this.filePath, line, 'utf8');
+      const content = lines.join('\n') + '\n';
+      await appendFile(this.filePath, content, 'utf8');
     } catch (error) {
       console.warn('[FileDLQ] Failed to write to disk:', error);
     }
@@ -142,7 +125,7 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
 
       const content = await readFile(this.filePath, 'utf8');
       const lines = content.trim().split('\n').filter((line: string) => line.trim());
-      
+
       for (const line of lines) {
         try {
           const entry: DLQEntry = JSON.parse(line);

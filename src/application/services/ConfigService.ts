@@ -92,7 +92,6 @@ export class ConfigService {
     transport?: TransportConfig
   ): ResolvedLogsInterceptorConfig['transport'] {
     // Normalize compression type
-    // Normalize compression type
     let compression: 'none' | 'gzip' | 'brotli' | 'snappy' = 'gzip';
     if (transport?.compression === false || transport?.compression === 'none') {
       compression = 'none';

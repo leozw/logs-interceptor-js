@@ -72,6 +72,8 @@ export class LokiJsonTransport implements ILogTransport {
       connections: config.maxSockets ?? 50,
       keepAliveTimeout: 60000,
       keepAliveMaxTimeout: 600000,
+      headersTimeout: config.timeout ?? 5000,
+      bodyTimeout: config.timeout ?? 5000,
     });
   }
 

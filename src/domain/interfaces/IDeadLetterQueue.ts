@@ -13,6 +13,11 @@ export interface IDeadLetterQueue {
   add(entry: LogEntry, reason: string): Promise<void>;
 
   /**
+   * Add multiple entries to DLQ in a single batch
+   */
+  addBatch(entries: LogEntry[], reason: string): Promise<void>;
+
+  /**
    * Attempt to flush entries from DLQ
    */
   flush(): Promise<number>; // Returns number of entries flushed

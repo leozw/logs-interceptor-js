@@ -2,13 +2,14 @@
  * Infrastructure: In-Memory Dead Letter Queue
  * Simple in-memory implementation for testing or low-volume scenarios
  */
-import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
 import { LogEntry } from '../../domain/entities/LogEntry';
+import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
 
 interface DLQEntry {
   entry: LogEntry;
   reason: string;
   timestamp: number;
+  retryCount?: number;
 }
 
 export class MemoryDeadLetterQueue implements IDeadLetterQueue {
@@ -20,17 +21,23 @@ export class MemoryDeadLetterQueue implements IDeadLetterQueue {
   }
 
   async add(entry: LogEntry, reason: string): Promise<void> {
-    const dlqEntry: DLQEntry = {
-      entry,
-      reason,
-      timestamp: Date.now(),
-    };
+    return this.addBatch([entry], reason);
+  }
 
-    this.queue.push(dlqEntry);
+  async addBatch(entries: LogEntry[], reason: string): Promise<void> {
+    const timestamp = Date.now();
+    for (const entry of entries) {
+      this.queue.push({
+        entry,
+        reason,
+        timestamp,
+        retryCount: 0,
+      });
+    }
 
-    // Trim if exceeds max size (FIFO)
+    // Trim execution is cheap in memory
     if (this.queue.length > this.maxSize) {
-      this.queue.shift();
+      this.queue = this.queue.slice(this.queue.length - this.maxSize);
     }
   }
 

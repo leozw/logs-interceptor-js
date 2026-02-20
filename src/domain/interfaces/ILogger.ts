@@ -1,5 +1,4 @@
 import type { LogLevel } from '../value-objects/LogLevel';
-import { LogEntry } from '../entities/LogEntry';
 
 /**
  * Main logger interface
@@ -50,8 +49,8 @@ export interface HealthStatus {
   readonly lastSuccessfulFlush: number;
   readonly consecutiveErrors: number;
   readonly bufferUtilization: number;
-  readonly uptime: number;
-  readonly memoryUsageMB: number;
-  readonly circuitBreakerState: string;
+  uptime: number;
+  memoryUsageMB: number;
+  circuitBreakerState: 'closed' | 'open' | 'half-open';
+  lastError?: string;
 }
-

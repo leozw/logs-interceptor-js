@@ -75,14 +75,13 @@ export class ConsoleInterceptor implements ILogInterceptor {
 
       console[method] = (...args: unknown[]): void => {
         // Always intercept console logs - call logger directly
-        const message = args
-          .map((arg) =>
-            typeof arg === 'string' ? arg : safeStringify(arg)
-          )
-          .join(' ');
-
         // Call logger directly, bypassing intercept() to avoid stack trace issues
         try {
+          const message = args
+            .map((arg) =>
+              typeof arg === 'string' ? arg : safeStringify(arg)
+            )
+            .join(' ');
           this.logger.log(level, message, { source: 'console' });
         } catch (error) {
           // If logger fails, still call original console

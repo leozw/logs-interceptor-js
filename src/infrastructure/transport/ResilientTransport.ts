@@ -32,11 +32,9 @@ export class ResilientTransport implements ILogTransport {
     } catch (error) {
       // Send all failed logs to DLQ
       if (this.dlq) {
-        for (const entry of entries) {
-          await this.dlq.add(entry, (error as Error).message).catch(() => {
-            // Ignore DLQ errors to prevent loop
-          });
-        }
+        await this.dlq.addBatch(entries, (error as Error).message).catch(() => {
+          // Ignore DLQ errors to prevent loop
+        });
       }
       throw error;
     }
@@ -75,6 +73,16 @@ export class ResilientTransport implements ILogTransport {
   }
 
   getHealth(): TransportHealth {
+    if (this.circuitBreaker) {
+      const state = this.circuitBreaker.getState();
+      if (state.state === 'open') {
+        return {
+          healthy: false,
+          consecutiveFailures: state.failures,
+          errorMessage: `CircuitBreaker is OPEN. Last error: ${state.lastError}`,
+        };
+      }
+    }
     return this.transport.getHealth();
   }
 
