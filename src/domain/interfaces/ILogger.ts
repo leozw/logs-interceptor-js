@@ -12,6 +12,11 @@ export interface ILogger {
   fatal(message: string, context?: Record<string, unknown>): void;
   log(level: LogLevel, message: string, context?: Record<string, unknown>): void;
   trackEvent(eventName: string, properties?: Record<string, unknown>): void;
+  withContext<T>(context: Record<string, unknown>, fn: () => T): T;
+  withContextAsync<T>(
+    context: Record<string, unknown>,
+    fn: () => Promise<T>
+  ): Promise<T>;
   flush(): Promise<void>;
   getMetrics(): LoggerMetrics;
   getHealth(): HealthStatus;
@@ -30,6 +35,8 @@ export interface LoggerMetrics {
   readonly memoryUsage: number;
   readonly cpuUsage: number;
   readonly circuitBreakerTrips: number;
+  readonly droppedByBackpressure: number;
+  readonly droppedByDlq: number;
   readonly latency?: {
     readonly p50: number;
     readonly p95: number;

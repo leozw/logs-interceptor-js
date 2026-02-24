@@ -2,7 +2,6 @@
  * Infrastructure: Advanced Metrics Collector
  * Tracks latency percentiles, throughput, and other advanced metrics
  */
-import { performance } from 'perf_hooks';
 
 export interface LatencyMetrics {
   readonly p50: number;
@@ -28,17 +27,24 @@ export class MetricsCollector {
   private latencies: number[] = [];
   private compressionRatios: number[] = [];
   private compressionTimes: number[] = [];
+  private operationTimestamps: number[] = [];
   private totalOriginalBytes = 0;
   private totalCompressedBytes = 0;
-  private readonly maxSamples = 10000; // Keep last 10k samples
+  private readonly maxSamples = 10_000;
 
   /**
    * Record a latency measurement
    */
   recordLatency(ms: number): void {
     this.latencies.push(ms);
+    this.operationTimestamps.push(Date.now());
+
     if (this.latencies.length > this.maxSamples) {
       this.latencies.shift();
+    }
+
+    if (this.operationTimestamps.length > this.maxSamples) {
+      this.operationTimestamps.shift();
     }
   }
 
@@ -140,6 +146,7 @@ export class MetricsCollector {
     this.latencies = [];
     this.compressionRatios = [];
     this.compressionTimes = [];
+    this.operationTimestamps = [];
     this.totalOriginalBytes = 0;
     this.totalCompressedBytes = 0;
   }
@@ -148,12 +155,18 @@ export class MetricsCollector {
    * Get throughput (operations per second)
    */
   getThroughput(windowSeconds: number = 60): number {
+    if (windowSeconds <= 0) {
+      return 0;
+    }
+
+    if (this.operationTimestamps.length === 0) {
+      return 0;
+    }
+
     const now = Date.now();
     const windowStart = now - windowSeconds * 1000;
-    
-    // For simplicity, estimate based on recent samples
-    // In production, you'd track timestamps
-    const recentCount = Math.min(this.latencies.length, 1000);
-    return (recentCount / windowSeconds) * (this.latencies.length / recentCount);
+
+    const inWindow = this.operationTimestamps.filter((ts) => ts >= windowStart).length;
+    return inWindow / windowSeconds;
   }
 }

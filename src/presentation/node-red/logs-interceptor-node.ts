@@ -61,13 +61,13 @@ export = function (RED: any) {
       
       const loggerConfig = {
         transport: {
-          url: config.url || (env.LOGS_INTERCEPTOR_URL as string),
-          tenantId: config.tenantId || (env.LOGS_INTERCEPTOR_TENANT_ID as string),
-          authToken: config.authToken || (env.LOGS_INTERCEPTOR_AUTH_TOKEN as string),
+          url: config.url || (env.LOGS_URL as string),
+          tenantId: config.tenantId || (env.LOGS_TENANT as string),
+          authToken: config.authToken || (env.LOGS_TOKEN as string),
         },
-        appName: config.appName || 'node-red',
-        environment: config.environment || 'production',
-        version: config.version || '1.0.0',
+        appName: config.appName || (env.LOGS_APP_NAME as string) || 'node-red',
+        environment: config.environment || (env.LOGS_ENVIRONMENT as string) || 'production',
+        version: config.version || (env.LOGS_APP_VERSION as string) || '1.0.0',
         interceptConsole: config.interceptConsole ?? false,
         debug: config.debug ?? false,
       };
@@ -172,4 +172,3 @@ export = function (RED: any) {
     });
   });
 };
-

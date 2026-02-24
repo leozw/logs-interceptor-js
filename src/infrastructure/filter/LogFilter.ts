@@ -3,7 +3,6 @@
  */
 import { ILogFilter } from '../../domain/interfaces/ILogFilter';
 import type { LogLevel } from '../../domain/value-objects/LogLevel';
-import { LogLevelVO } from '../../domain/value-objects/LogLevel';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import { sanitizeData, detectSensitiveData, shouldSample } from '../../utils';
 
@@ -76,4 +75,3 @@ export class LogFilter implements ILogFilter {
     return this.config.levels.includes(level);
   }
 }
-

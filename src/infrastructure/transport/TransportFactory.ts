@@ -6,8 +6,8 @@ import { ResolvedLogsInterceptorConfig } from '../../application/config/LogsInte
 import { ICircuitBreaker } from '../../domain/interfaces/ICircuitBreaker';
 import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
 import { ILogTransport } from '../../domain/interfaces/ILogTransport';
+import { internalDebug } from '../../utils';
 import { LokiJsonTransport } from './LokiJsonTransport';
-import { LokiProtobufTransport } from './LokiProtobufTransport';
 import { ResilientTransport } from './ResilientTransport';
 
 export class TransportFactory {
@@ -20,21 +20,25 @@ export class TransportFactory {
       ...config.transport,
       useWorkers: config.transport.useWorkers ?? config.performance.useWorkers,
       maxWorkers: config.transport.maxWorkers ?? config.performance.maxWorkers,
+      workerTimeout:
+        config.transport.workerTimeout ?? config.performance.workerTimeout,
     };
 
     let baseTransport: ILogTransport;
 
-    // Select transport based on compression/format
-    // 'snappy' implies Protobuf transport as it's the native Loki format
     if (config.transport.compression === 'snappy') {
-      console.log('[TransportFactory] Selected LokiProtobufTransport');
+      // Lazy import to avoid loading native snappy bindings when not needed.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { LokiProtobufTransport } = require('./LokiProtobufTransport') as {
+        LokiProtobufTransport: new (...args: any[]) => ILogTransport;
+      };
+      internalDebug('Selected LokiProtobufTransport');
       baseTransport = new LokiProtobufTransport(transportConfig);
     } else {
-      console.log('[TransportFactory] Selected LokiJsonTransport');
+      internalDebug('Selected LokiJsonTransport');
       baseTransport = new LokiJsonTransport(transportConfig);
     }
 
-    // Wrap in resilience layer
     return new ResilientTransport(
       baseTransport,
       {

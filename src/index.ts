@@ -3,51 +3,58 @@
  * Public API for logs-interceptor
  */
 import { ConfigService, LogsInterceptorConfig } from './application';
-import { HealthStatus, ILogger, LoggerMetrics } from './domain/interfaces/ILogger';
+import {
+  HealthStatus,
+  ILogger,
+  LoggerMetrics,
+} from './domain/interfaces/ILogger';
 import { LogLevel } from './domain/value-objects/LogLevel';
+import { ConsoleInterceptor } from './infrastructure/interceptors/ConsoleInterceptor';
 import { LogsInterceptorFactory } from './presentation/factory/LogsInterceptorFactory';
-import { loadConfigFromEnv, mergeConfigs } from './utils';
+import {
+  internalDebug,
+  internalError,
+  loadConfigFromEnv,
+  mergeConfigs,
+  parseBool,
+} from './utils';
 
 export * from './infrastructure/integrations';
 
-let globalInstance: ILogger | null = null;
+interface RuntimeState {
+  logger: ILogger;
+  consoleInterceptor?: ConsoleInterceptor;
+}
+
+let globalRuntime: RuntimeState | null = null;
 
 /**
  * Initialize the logs interceptor with configuration
- * Can be called multiple times - subsequent calls will update the configuration
+ * Can be called multiple times - subsequent calls will replace active runtime
  */
-export function init(
-  userConfig: Partial<LogsInterceptorConfig> = {}
-): ILogger {
-  // Load configuration from environment
+export function init(userConfig: Partial<LogsInterceptorConfig> = {}): ILogger {
   const envConfig = loadConfigFromEnv();
-
-  // Merge configurations
   const mergedConfig = mergeConfigs(userConfig, envConfig);
 
-  // Validate configuration
   const errors = ConfigService.validate(mergedConfig);
   if (errors.length > 0) {
     throw new Error(`Configuration errors:\n${errors.join('\n')}`);
   }
 
-  // Resolve configuration with defaults
-  const resolvedConfig = ConfigService.resolve(
-    mergedConfig as LogsInterceptorConfig
-  );
+  const resolvedConfig = ConfigService.resolve(mergedConfig as LogsInterceptorConfig);
 
-  // Destroy existing instance if it exists
-  if (globalInstance) {
-    globalInstance.destroy().catch(() => {
-      // Ignore errors during cleanup
+  const previous = globalRuntime;
+  if (previous) {
+    previous.consoleInterceptor?.restore();
+    void previous.logger.destroy().catch(() => {
+      // Ignore cleanup error while replacing runtime
     });
   }
 
-  // Create new instance using factory
-  const { logger } = LogsInterceptorFactory.create(resolvedConfig);
-  globalInstance = logger;
+  const runtime = LogsInterceptorFactory.create(resolvedConfig);
+  globalRuntime = runtime;
 
-  return logger;
+  return runtime.logger;
 }
 
 /**
@@ -55,163 +62,134 @@ export function init(
  * Throws an error if not initialized
  */
 export function getLogger(): ILogger {
-  if (!globalInstance) {
+  if (!globalRuntime) {
     throw new Error('LogsInterceptor not initialized. Call init() first.');
   }
-  return globalInstance;
+
+  return globalRuntime.logger;
 }
 
 /**
  * Check if the logger is initialized
  */
 export function isInitialized(): boolean {
-  return globalInstance !== null;
+  return globalRuntime !== null;
 }
 
 /**
  * Destroy the global logger instance
  */
 export async function destroy(): Promise<void> {
-  if (globalInstance) {
-    await globalInstance.destroy();
-    globalInstance = null;
+  if (!globalRuntime) {
+    return;
   }
+
+  const runtime = globalRuntime;
+  globalRuntime = null;
+
+  runtime.consoleInterceptor?.restore();
+  await runtime.logger.destroy();
 }
 
 /**
- * Auto-initialize if environment variables are present
- * This allows the logger to work automatically when loaded via NODE_OPTIONS
+ * Auto-initialize only when explicitly enabled
  */
-function autoInit(): void {
-  // Only auto-initialize if we have the required environment variables
-  const envConfig = loadConfigFromEnv();
+function autoInitIfEnabled(): void {
+  if (!parseBool(process.env.LOGS_AUTO_INIT, false)) {
+    return;
+  }
 
-  if (
-    envConfig.transport?.url &&
-    envConfig.transport?.tenantId &&
-    envConfig.appName &&
-    process.env.LOGS_INTERCEPTOR_ENABLED !== 'false'
-  ) {
-    try {
-      init(envConfig);
-      console.log(
-        '[logs-interceptor] Auto-initialized from environment variables'
-      );
-    } catch (error) {
-      console.error('[logs-interceptor] Auto-initialization failed:', error);
-    }
+  const envConfig = loadConfigFromEnv();
+  if (!envConfig.transport?.url || !envConfig.transport.tenantId || !envConfig.appName) {
+    internalDebug('Auto-init skipped due to missing required LOGS_* variables');
+    return;
+  }
+
+  try {
+    init(envConfig);
+    internalDebug('Auto-initialized from LOGS_* environment variables');
+  } catch (error) {
+    internalError('Auto-initialization failed', error);
   }
 }
 
-// Convenience exports for direct usage without initialization
 export const logger = {
-  /**
-   * Log a debug message
-   */
   debug: (message: string, context?: Record<string, unknown>) => {
-    if (globalInstance) {
-      globalInstance.debug(message, context);
-    }
+    globalRuntime?.logger.debug(message, context);
   },
 
-  /**
-   * Log an info message
-   */
   info: (message: string, context?: Record<string, unknown>) => {
-    if (globalInstance) {
-      globalInstance.info(message, context);
-    }
+    globalRuntime?.logger.info(message, context);
   },
 
-  /**
-   * Log a warning message
-   */
   warn: (message: string, context?: Record<string, unknown>) => {
-    if (globalInstance) {
-      globalInstance.warn(message, context);
-    }
+    globalRuntime?.logger.warn(message, context);
   },
 
-  /**
-   * Log an error message
-   */
   error: (message: string, context?: Record<string, unknown>) => {
-    if (globalInstance) {
-      globalInstance.error(message, context);
-    }
+    globalRuntime?.logger.error(message, context);
   },
 
-  /**
-   * Generic log method
-   */
   log: (level: LogLevel, message: string, context?: Record<string, unknown>) => {
-    if (globalInstance) {
-      globalInstance.log(level, message, context);
-    }
+    globalRuntime?.logger.log(level, message, context);
   },
 
-  /**
-   * Log a fatal message
-   */
   fatal: (message: string, context?: Record<string, unknown>) => {
-    if (globalInstance) {
-      globalInstance.fatal(message, context);
-    }
+    globalRuntime?.logger.fatal(message, context);
   },
 
-  /**
-   * Track an event
-   */
   trackEvent: (eventName: string, properties?: Record<string, unknown>) => {
-    if (globalInstance) {
-      globalInstance.trackEvent(eventName, properties);
-    }
+    globalRuntime?.logger.trackEvent(eventName, properties);
   },
 
-  /**
-   * Force flush logs
-   */
+  withContext: <T>(context: Record<string, unknown>, fn: () => T): T => {
+    if (!globalRuntime) {
+      throw new Error('LogsInterceptor not initialized');
+    }
+
+    return globalRuntime.logger.withContext(context, fn);
+  },
+
+  withContextAsync: async <T>(
+    context: Record<string, unknown>,
+    fn: () => Promise<T>
+  ): Promise<T> => {
+    if (!globalRuntime) {
+      throw new Error('LogsInterceptor not initialized');
+    }
+
+    return globalRuntime.logger.withContextAsync(context, fn);
+  },
+
   flush: async (): Promise<void> => {
-    if (globalInstance) {
-      return globalInstance.flush();
+    if (globalRuntime) {
+      await globalRuntime.logger.flush();
     }
   },
 
-  /**
-   * Get metrics
-   */
   getMetrics: (): LoggerMetrics => {
-    if (!globalInstance) {
+    if (!globalRuntime) {
       throw new Error('LogsInterceptor not initialized');
     }
-    return globalInstance.getMetrics();
+
+    return globalRuntime.logger.getMetrics();
   },
 
-  /**
-   * Get health status
-   */
   getHealth: (): HealthStatus => {
-    if (!globalInstance) {
+    if (!globalRuntime) {
       throw new Error('LogsInterceptor not initialized');
     }
-    return globalInstance.getHealth();
+
+    return globalRuntime.logger.getHealth();
   },
 
-  /**
-   * Destroy the logger
-   */
   destroy: async (): Promise<void> => {
-    if (globalInstance) {
-      await globalInstance.destroy();
-      globalInstance = null;
-    }
+    await destroy();
   },
 };
 
-// Auto-initialize when module is loaded
-autoInit();
+autoInitIfEnabled();
 
-// Default export for convenience
 export default {
   init,
   getLogger,
@@ -220,10 +198,11 @@ export default {
   logger,
 };
 
-// Export types and interfaces (selective exports to avoid conflicts)
-export type { LogsInterceptorConfig, ResolvedLogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
+export type {
+  LogsInterceptorConfig,
+  ResolvedLogsInterceptorConfig,
+} from './application/config/LogsInterceptorConfig';
 export type { LogEntry, LogMetadata } from './domain/entities/LogEntry';
 export type { HealthStatus, ILogger, LoggerMetrics } from './domain/interfaces/ILogger';
 export { LogLevelVO } from './domain/value-objects/LogLevel';
 export type { LogLevel } from './domain/value-objects/LogLevel';
-

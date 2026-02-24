@@ -34,10 +34,10 @@ export interface CircuitBreakerState {
   readonly state: CircuitBreakerStateType;
   readonly failures: number;
   readonly successCount: number;
+  readonly halfOpenInFlight?: number;
   readonly lastFailure?: number;
   readonly nextAttempt?: number;
   readonly lastError?: string;
 }
-
 
 

@@ -5,6 +5,7 @@
 import { promisify } from 'util';
 import { gzip } from 'zlib';
 import { CompressorConfig, ICompressor } from '../../domain/interfaces/ICompressor';
+import { internalWarn } from '../../utils';
 
 const gzipAsync = promisify(gzip);
 
@@ -24,7 +25,7 @@ export class GzipCompressor implements ICompressor {
         chunkSize: 16 * 1024,
       })) as Buffer;
     } catch (error) {
-      console.warn('[GzipCompressor] Compression failed:', error);
+      internalWarn('Gzip compression failed', error);
       throw error;
     }
   }

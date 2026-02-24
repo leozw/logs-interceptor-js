@@ -43,6 +43,11 @@ export interface ILogBuffer {
    * Get buffer metrics
    */
   getMetrics(): BufferMetrics;
+
+  /**
+   * Shutdown buffer and release resources
+   */
+  destroy(): void;
 }
 
 export interface BufferMetrics {
@@ -51,7 +56,7 @@ export interface BufferMetrics {
   readonly oldestEntry?: number;
   readonly newestEntry?: number;
   readonly memoryUsageMB: number;
+  readonly droppedEntries: number;
 }
-
 
 

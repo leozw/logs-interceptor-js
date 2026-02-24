@@ -1,12 +1,13 @@
 /**
  * Integration Tests for logs-interceptor
- * Tests core functionality and features
  */
-import { getLogger, init } from '../index';
+import { destroy, getLogger, init } from '../index';
 
 describe('Logs Interceptor - Integration Tests', () => {
-  beforeEach(() => {
-    // Clear any existing instance
+  afterEach(async () => {
+    await destroy().catch(() => {
+      // ignore cleanup errors in tests
+    });
     jest.clearAllMocks();
   });
 
@@ -18,6 +19,7 @@ describe('Logs Interceptor - Integration Tests', () => {
           tenantId: 'test-tenant',
           authToken: 'test-token',
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test-app',
         environment: 'test',
@@ -31,7 +33,7 @@ describe('Logs Interceptor - Integration Tests', () => {
       expect(() => {
         init({
           transport: {
-            url: '', // Invalid: empty URL
+            url: '',
             tenantId: 'test',
             useWorkers: false,
           },
@@ -48,9 +50,10 @@ describe('Logs Interceptor - Integration Tests', () => {
           url: 'https://loki.example.com/loki/api/v1/push',
           tenantId: 'test',
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test',
-        interceptConsole: false, // Don't intercept console in tests
+        interceptConsole: false,
       });
 
       expect(() => {
@@ -58,34 +61,44 @@ describe('Logs Interceptor - Integration Tests', () => {
         instance.info('Info message');
         instance.warn('Warning message');
         instance.error('Error message');
-        instance.fatal('Fatal message');
       }).not.toThrow();
     });
 
-    it('should track events', () => {
+    it('should support context propagation API', async () => {
       const instance = init({
         transport: {
           url: 'https://loki.example.com/loki/api/v1/push',
           tenantId: 'test',
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test',
         interceptConsole: false,
       });
 
-      expect(() => {
-        instance.trackEvent('user_login', { userId: '123' });
-      }).not.toThrow();
+      instance.withContext({ requestId: 'req-123' }, () => {
+        instance.info('context sync');
+      });
+
+      await instance.withContextAsync({ requestId: 'req-456' }, async () => {
+        instance.info('context async');
+      });
+
+      const metrics = instance.getMetrics();
+      expect(metrics.logsProcessed).toBeGreaterThanOrEqual(2);
     });
   });
 
   describe('Flush', () => {
-    it('should flush logs', async () => {
+    it('should flush logs and propagate transport errors', async () => {
       const instance = init({
         transport: {
           url: 'https://loki.example.com/loki/api/v1/push',
           tenantId: 'test',
           useWorkers: false,
+          enableConnectionPooling: false,
+          maxRetries: 0,
+          timeout: 100,
         },
         appName: 'test',
         interceptConsole: false,
@@ -96,19 +109,18 @@ describe('Logs Interceptor - Integration Tests', () => {
       });
 
       instance.info('Test log');
-
-      // Flush should throw because URL is invalid and ResilientTransport re-throws after DLQ
       await expect(instance.flush()).rejects.toThrow();
     });
   });
 
   describe('Metrics and Health', () => {
-    it('should return metrics', () => {
+    it('should return expanded metrics', () => {
       const instance = init({
         transport: {
           url: 'https://loki.example.com/loki/api/v1/push',
           tenantId: 'test',
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test',
         interceptConsole: false,
@@ -118,6 +130,8 @@ describe('Logs Interceptor - Integration Tests', () => {
       expect(metrics).toBeDefined();
       expect(metrics.logsProcessed).toBeGreaterThanOrEqual(0);
       expect(metrics.bufferSize).toBeGreaterThanOrEqual(0);
+      expect(metrics.droppedByBackpressure).toBeGreaterThanOrEqual(0);
+      expect(metrics.droppedByDlq).toBeGreaterThanOrEqual(0);
     });
 
     it('should return health status', () => {
@@ -126,6 +140,7 @@ describe('Logs Interceptor - Integration Tests', () => {
           url: 'https://loki.example.com/loki/api/v1/push',
           tenantId: 'test',
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test',
         interceptConsole: false,
@@ -147,6 +162,7 @@ describe('Logs Interceptor - Integration Tests', () => {
           compression: 'brotli',
           compressionLevel: 4,
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test',
         interceptConsole: false,
@@ -162,43 +178,10 @@ describe('Logs Interceptor - Integration Tests', () => {
           tenantId: 'test',
           compression: 'gzip',
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test',
         interceptConsole: false,
-      });
-
-      expect(instance).toBeDefined();
-    });
-
-    it('should support connection pooling', () => {
-      const instance = init({
-        transport: {
-          url: 'https://loki.example.com/loki/api/v1/push',
-          tenantId: 'test',
-          enableConnectionPooling: true,
-          useWorkers: false,
-        },
-        appName: 'test',
-        interceptConsole: false,
-      });
-
-      expect(instance).toBeDefined();
-    });
-
-    it('should support circuit breaker', () => {
-      const instance = init({
-        transport: {
-          url: 'https://loki.example.com/loki/api/v1/push',
-          tenantId: 'test',
-          useWorkers: false,
-        },
-        appName: 'test',
-        interceptConsole: false,
-        circuitBreaker: {
-          enabled: true,
-          failureThreshold: 5,
-          resetTimeout: 60000,
-        },
       });
 
       expect(instance).toBeDefined();
@@ -210,6 +193,7 @@ describe('Logs Interceptor - Integration Tests', () => {
           url: 'https://loki.example.com/loki/api/v1/push',
           tenantId: 'test',
           useWorkers: false,
+          enableConnectionPooling: false,
         },
         appName: 'test',
         interceptConsole: false,

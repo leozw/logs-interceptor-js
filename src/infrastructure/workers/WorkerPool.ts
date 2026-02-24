@@ -4,6 +4,7 @@
  */
 import { join } from 'path';
 import { Worker } from 'worker_threads';
+import { internalError, internalWarn } from '../../utils';
 
 interface Task<T = any> {
   id: string;
@@ -42,7 +43,9 @@ export class WorkerPool {
   private destroyed = false;
 
   constructor(config: WorkerPoolConfig = {}) {
-    this.maxWorkers = config.maxWorkers ?? Math.max(2, Math.floor(require('os').cpus().length / 2));
+    const cpuCount = require('os').cpus().length;
+    const defaultWorkers = Math.max(1, Math.floor(cpuCount / 2));
+    this.maxWorkers = Math.max(1, config.maxWorkers ?? defaultWorkers);
     this.taskTimeout = config.taskTimeout ?? 30000; // 30s default
     const extension = __filename.endsWith('.ts') ? 'ts' : 'js';
     this.workerScript = config.workerScript || join(__dirname, `log-processor.worker.${extension}`);
@@ -63,14 +66,14 @@ export class WorkerPool {
     // Worker messages are handled in processTask via messageHandler
 
     worker.on('error', (error) => {
-      console.error('[WorkerPool] Worker error:', error);
+      internalError('WorkerPool worker error', error);
       this.replaceWorker(worker);
     });
 
     worker.on('exit', (code) => {
       if (this.destroyed) return;
       if (code !== 0) {
-        console.warn(`[WorkerPool] Worker exited with code ${code}`);
+        internalWarn(`WorkerPool worker exited with code ${code}`);
         this.replaceWorker(worker);
       }
     });
@@ -105,7 +108,7 @@ export class WorkerPool {
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const task: Task<T> = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
         type,
         data,
         options,

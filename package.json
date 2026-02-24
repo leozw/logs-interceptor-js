@@ -1,6 +1,6 @@
 {
   "name": "logs-interceptor",
-  "version": "2.1.6",
+  "version": "3.0.0",
   "description": "High-performance, production-ready log interceptor for Node.js applications with Loki integration. Built with Clean Architecture principles. Supports Node.js, Browser, and Node-RED.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

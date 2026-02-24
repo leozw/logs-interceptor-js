@@ -16,4 +16,13 @@ export class MorganAdapter {
       },
     };
   }
+
+  static create(format: string, logger: ILogger) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const morgan = require('morgan') as (
+      fmt: string,
+      options: { stream: { write: (message: string) => void } }
+    ) => any;
+    return morgan(format, { stream: this.createStream(logger) });
+  }
 }

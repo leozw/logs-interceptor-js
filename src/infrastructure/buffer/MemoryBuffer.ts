@@ -1,6 +1,6 @@
 /**
  * Infrastructure: Memory Buffer Implementation
- * Enhanced with efficient memory tracking
+ * Enhanced with efficient memory tracking and bounded memory policy
  */
 import { LogEntry } from '../../domain/entities/LogEntry';
 import { BufferMetrics, ILogBuffer } from '../../domain/interfaces/ILogBuffer';
@@ -12,7 +12,7 @@ export interface MemoryBufferConfig {
   readonly maxAge: number;
   readonly autoFlush: boolean;
   readonly maxMemoryMB: number;
-  readonly onFlushRequested?: () => void; // Callback when flush should be triggered
+  readonly onFlushRequested?: () => void;
 }
 
 export class MemoryBuffer implements ILogBuffer {
@@ -21,10 +21,13 @@ export class MemoryBuffer implements ILogBuffer {
   private flushTimer: NodeJS.Timeout | null = null;
   private memoryTracker: MemoryTracker;
   private flushCallback?: () => void;
+  private droppedEntries = 0;
+  private destroyed = false;
 
   constructor(private readonly config: MemoryBufferConfig) {
     this.memoryTracker = new MemoryTracker();
     this.flushCallback = config.onFlushRequested;
+
     if (config.autoFlush) {
       this.scheduleFlush();
     }
@@ -38,41 +41,65 @@ export class MemoryBuffer implements ILogBuffer {
   }
 
   add(entry: LogEntry): void {
+    if (this.destroyed) {
+      return;
+    }
+
     this.entries.push(entry);
     this.memoryTracker.addEntry(entry);
 
-    // Check memory threshold
+    this.enforceMaxSize();
+
     const memoryMB = this.memoryTracker.getTotalSizeMB();
     if (memoryMB > this.config.maxMemoryMB) {
-      // Force flush if memory threshold exceeded
-      if (this.config.autoFlush) {
-        this.scheduleFlush();
-      } else {
-        // If auto-flush is off and we are out of memory, we MUST drop old entries to prevent crash
-        this.removeOldEntries();
-      }
+      this.removeOldEntries();
+      this.enforceMaxSize();
     }
 
-    // Ensure a flush timer is running so logs don't sit forever
     if (this.config.autoFlush) {
       this.scheduleFlush();
     }
 
-    // Auto-flush immediately if buffer is full (Burst Mode)
     if (this.entries.length >= this.config.maxSize && this.config.autoFlush) {
       this.triggerImmediateFlush();
     }
   }
 
+  private enforceMaxSize(): void {
+    if (this.entries.length <= this.config.maxSize) {
+      return;
+    }
+
+    const removeCount = this.entries.length - this.config.maxSize;
+    this.dropOldest(removeCount);
+  }
+
+  private dropOldest(count: number): void {
+    if (count <= 0 || this.entries.length === 0) {
+      return;
+    }
+
+    const toDrop = this.entries.slice(0, count);
+    this.entries = this.entries.slice(count);
+    this.memoryTracker.removeEntries(toDrop);
+    this.droppedEntries += toDrop.length;
+  }
+
   private triggerImmediateFlush(): void {
+    if (this.destroyed) {
+      return;
+    }
+
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
 
-    // Use setImmediate to allow current event loop tick to finish
-    // and prevent potential recursion issues
     setImmediate(() => {
+      if (this.destroyed) {
+        return;
+      }
+
       if (this.flushCallback && this.entries.length > 0) {
         this.flushCallback();
       }
@@ -90,7 +117,7 @@ export class MemoryBuffer implements ILogBuffer {
     this.entries = [];
     this.lastFlushTime = Date.now();
 
-    if (this.config.autoFlush) {
+    if (this.config.autoFlush && !this.destroyed) {
       this.scheduleFlush();
     }
 
@@ -113,18 +140,31 @@ export class MemoryBuffer implements ILogBuffer {
     const timeSinceLastFlush = Date.now() - this.lastFlushTime;
     return (
       this.entries.length >= this.config.maxSize ||
-      (this.config.autoFlush &&
-        timeSinceLastFlush >= this.config.flushInterval)
+      (this.config.autoFlush && timeSinceLastFlush >= this.config.flushInterval)
     );
   }
 
   clear(): void {
     this.memoryTracker.removeEntries(this.entries);
     this.entries = [];
+
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+
+    this.clear();
+    this.memoryTracker.reset();
+    this.flushCallback = undefined;
   }
 
   getMetrics(): BufferMetrics {
@@ -135,7 +175,6 @@ export class MemoryBuffer implements ILogBuffer {
       ? Date.parse(this.entries[this.entries.length - 1].timestamp)
       : undefined;
 
-    // Use efficient memory tracking instead of expensive JSON.stringify
     const memoryStats = this.memoryTracker.getStats();
 
     return {
@@ -144,6 +183,7 @@ export class MemoryBuffer implements ILogBuffer {
       oldestEntry,
       newestEntry,
       memoryUsageMB: memoryStats.totalMB,
+      droppedEntries: this.droppedEntries,
     };
   }
 
@@ -161,34 +201,34 @@ export class MemoryBuffer implements ILogBuffer {
       return true;
     });
 
-    // If still full, remove oldest entries
-    if (this.entries.length >= this.config.maxSize) {
-      const removeCount = Math.floor(this.config.maxSize * 0.1);
-      const oldest = this.entries.slice(0, removeCount);
-      removed.push(...oldest);
-      this.entries = this.entries.slice(removeCount);
-    }
-
-    // Update memory tracker
     if (removed.length > 0) {
       this.memoryTracker.removeEntries(removed);
+      this.droppedEntries += removed.length;
+    }
+
+    if (this.memoryTracker.getTotalSizeMB() > this.config.maxMemoryMB) {
+      const removeCount = Math.max(1, Math.floor(this.entries.length * 0.1));
+      this.dropOldest(removeCount);
     }
   }
 
   private scheduleFlush(): void {
-    if (this.flushTimer) {
+    if (this.destroyed || this.flushTimer) {
       return;
     }
 
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
-      // Notify service that flush should be triggered
+
+      if (this.destroyed) {
+        return;
+      }
+
       if (this.flushCallback && this.entries.length > 0) {
         this.flushCallback();
       }
     }, this.config.flushInterval);
+
+    this.flushTimer.unref?.();
   }
 }
-
-
-

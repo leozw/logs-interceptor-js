@@ -16,6 +16,7 @@ export interface TransportConfig {
   readonly compressionThreshold?: number; // bytes - only compress if larger
   readonly useWorkers?: boolean;
   readonly maxWorkers?: number;
+  readonly workerTimeout?: number;
   readonly enableConnectionPooling?: boolean;
   readonly maxSockets?: number;
 }
@@ -85,6 +86,7 @@ export interface DeadLetterQueueConfig {
   readonly enabled?: boolean;
   readonly type?: 'memory' | 'file';
   readonly maxSize?: number;
+  readonly maxFileSizeMB?: number;
   readonly maxRetries?: number;
   readonly basePath?: string;
 }
@@ -133,6 +135,5 @@ export interface ResolvedLogsInterceptorConfig {
   readonly debug: boolean;
   readonly silentErrors: boolean;
 }
-
 
 

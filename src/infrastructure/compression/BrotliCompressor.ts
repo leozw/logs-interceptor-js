@@ -5,6 +5,7 @@
 import { promisify } from 'util';
 import { brotliCompress, constants } from 'zlib';
 import { CompressorConfig, ICompressor } from '../../domain/interfaces/ICompressor';
+import { internalWarn } from '../../utils';
 
 const brotliCompressAsync = promisify(brotliCompress);
 
@@ -30,7 +31,7 @@ export class BrotliCompressor implements ICompressor {
         },
       })) as Buffer;
     } catch (error) {
-      console.warn('[BrotliCompressor] Compression failed:', error);
+      internalWarn('Brotli compression failed', error);
       throw error;
     }
   }

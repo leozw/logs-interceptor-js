@@ -1,23 +1,62 @@
 import * as crypto from 'crypto';
 import { LogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
+import { LogLevel, LogLevelVO } from './domain/value-objects/LogLevel';
 
 export interface EnvironmentConfig {
-  LOGS_INTERCEPTOR_URL?: string;
-  LOGS_INTERCEPTOR_TENANT_ID?: string;
-  LOGS_INTERCEPTOR_AUTH_TOKEN?: string;
-  LOGS_INTERCEPTOR_APP_NAME?: string;
-  LOGS_INTERCEPTOR_ENVIRONMENT?: string;
-  LOGS_INTERCEPTOR_VERSION?: string;
-  LOGS_INTERCEPTOR_LABELS?: string;
-  LOGS_INTERCEPTOR_BUFFER_SIZE?: string;
-  LOGS_INTERCEPTOR_FLUSH_INTERVAL?: string;
-  LOGS_INTERCEPTOR_LOG_LEVEL?: string;
-  LOGS_INTERCEPTOR_ENABLED?: string;
-  LOGS_INTERCEPTOR_DEBUG?: string;
-  LOGS_INTERCEPTOR_SAMPLING_RATE?: string;
-  LOGS_INTERCEPTOR_CIRCUIT_BREAKER?: string;
-  LOGS_INTERCEPTOR_SANITIZE?: string;
-  LOGS_INTERCEPTOR_MAX_MEMORY_MB?: string;
+  LOGS_URL?: string;
+  LOGS_TENANT?: string;
+  LOGS_TOKEN?: string;
+  LOGS_APP_NAME?: string;
+  LOGS_APP_VERSION?: string;
+  LOGS_ENVIRONMENT?: string;
+
+  LOGS_COMPRESSION?: string;
+  LOGS_COMPRESSION_LEVEL?: string;
+  LOGS_COMPRESSION_THRESHOLD?: string;
+  LOGS_USE_WORKERS?: string;
+  LOGS_MAX_WORKERS?: string;
+  LOGS_CONNECTION_POOLING?: string;
+  LOGS_MAX_SOCKETS?: string;
+  LOGS_TIMEOUT?: string;
+  LOGS_MAX_RETRIES?: string;
+  LOGS_RETRY_DELAY?: string;
+
+  LOGS_BUFFER_MAX_SIZE?: string;
+  LOGS_BUFFER_FLUSH_INTERVAL?: string;
+  LOGS_BUFFER_MAX_MEMORY_MB?: string;
+  LOGS_BUFFER_MAX_AGE?: string;
+  LOGS_BUFFER_AUTO_FLUSH?: string;
+
+  LOGS_FILTER_LEVELS?: string;
+  LOGS_FILTER_SAMPLING_RATE?: string;
+  LOGS_FILTER_SANITIZE?: string;
+  LOGS_FILTER_MAX_MESSAGE_LENGTH?: string;
+
+  LOGS_CIRCUIT_BREAKER_ENABLED?: string;
+  LOGS_CIRCUIT_BREAKER_FAILURE_THRESHOLD?: string;
+  LOGS_CIRCUIT_BREAKER_RESET_TIMEOUT?: string;
+  LOGS_CIRCUIT_BREAKER_HALF_OPEN_REQUESTS?: string;
+
+  LOGS_DLQ_ENABLED?: string;
+  LOGS_DLQ_TYPE?: string;
+  LOGS_DLQ_MAX_SIZE?: string;
+  LOGS_DLQ_MAX_RETRIES?: string;
+  LOGS_DLQ_BASE_PATH?: string;
+
+  LOGS_MAX_CONCURRENT_FLUSHES?: string;
+  LOGS_WORKER_TIMEOUT?: string;
+
+  LOGS_INTERCEPT_CONSOLE?: string;
+  LOGS_PRESERVE_ORIGINAL_CONSOLE?: string;
+  LOGS_ENABLE_METRICS?: string;
+  LOGS_ENABLE_HEALTH_CHECK?: string;
+  LOGS_DEBUG?: string;
+  LOGS_SILENT_ERRORS?: string;
+
+  LOGS_AUTO_INIT?: string;
+  LOGS_ENABLED?: string;
+
+  [key: string]: string | undefined;
 }
 
 export interface TransportOptions {
@@ -27,7 +66,117 @@ export interface TransportOptions {
   timeout?: number;
   maxRetries?: number;
   retryDelay?: number;
-  compression?: boolean;
+  compression?: 'none' | 'gzip' | 'brotli' | 'snappy' | boolean;
+}
+
+export function parseBool(
+  value: string | undefined,
+  defaultValue: boolean
+): boolean {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return defaultValue;
+}
+
+export function parseIntRange(
+  value: string | undefined,
+  defaultValue: number,
+  min: number,
+  max: number
+): number {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    return defaultValue;
+  }
+
+  if (parsed < min || parsed > max) {
+    return defaultValue;
+  }
+
+  return parsed;
+}
+
+export function parseFloatRange(
+  value: string | undefined,
+  defaultValue: number,
+  min: number,
+  max: number
+): number {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseFloat(value);
+  if (Number.isNaN(parsed)) {
+    return defaultValue;
+  }
+
+  if (parsed < min || parsed > max) {
+    return defaultValue;
+  }
+
+  return parsed;
+}
+
+export function isDebugEnabled(): boolean {
+  return parseBool(process.env.LOGS_DEBUG, false);
+}
+
+export function isSilentErrorsEnabled(): boolean {
+  return parseBool(process.env.LOGS_SILENT_ERRORS, false);
+}
+
+export function internalDebug(message: string, context?: unknown): void {
+  if (!isDebugEnabled() || isSilentErrorsEnabled()) {
+    return;
+  }
+
+  if (context !== undefined) {
+    console.log(`[logs-interceptor] ${message}`, context);
+    return;
+  }
+
+  console.log(`[logs-interceptor] ${message}`);
+}
+
+export function internalWarn(message: string, context?: unknown): void {
+  if (isSilentErrorsEnabled()) {
+    return;
+  }
+
+  if (context !== undefined) {
+    console.warn(`[logs-interceptor] ${message}`, context);
+    return;
+  }
+
+  console.warn(`[logs-interceptor] ${message}`);
+}
+
+export function internalError(message: string, context?: unknown): void {
+  if (isSilentErrorsEnabled()) {
+    return;
+  }
+
+  if (context !== undefined) {
+    console.error(`[logs-interceptor] ${message}`, context);
+    return;
+  }
+
+  console.error(`[logs-interceptor] ${message}`);
 }
 
 /**
@@ -35,117 +184,160 @@ export interface TransportOptions {
  */
 export function safeStringify(value: unknown, maxDepth: number = 10): string {
   const seen = new WeakSet();
-  let depth = 0;
-  
+
   try {
-    return JSON.stringify(value, function(key, val) {
-      // Check depth
-      if (depth > maxDepth) {
-        return '[Max Depth Reached]';
-      }
-      
-      if (val === null || val === undefined) {
+    return JSON.stringify(
+      value,
+      function replacer(_key, val) {
+        if (val === null || val === undefined) {
+          return val;
+        }
+
+        if (typeof val === 'function') {
+          return `[Function: ${val.name || 'anonymous'}]`;
+        }
+
+        if (typeof val === 'symbol') {
+          return `[Symbol: ${val.toString()}]`;
+        }
+
+        if (typeof val === 'bigint') {
+          return `${val.toString()}n`;
+        }
+
+        if (val instanceof Error) {
+          return {
+            name: val.name,
+            message: val.message,
+            stack: val.stack,
+            code: (val as any).code,
+          };
+        }
+
+        if (val instanceof Date) {
+          return val.toISOString();
+        }
+
+        if (val instanceof RegExp) {
+          return val.toString();
+        }
+
+        if (typeof val === 'object') {
+          if (seen.has(val)) {
+            return '[Circular Reference]';
+          }
+          seen.add(val);
+
+          const depth = getObjectDepth(val, maxDepth);
+          if (depth > maxDepth) {
+            return '[Max Depth Reached]';
+          }
+
+          if (val instanceof Buffer) {
+            return `[Buffer: ${val.length} bytes]`;
+          }
+
+          if (val instanceof Promise) {
+            return '[Promise]';
+          }
+
+          if (val instanceof WeakMap || val instanceof WeakSet) {
+            return `[${val.constructor.name}]`;
+          }
+
+          if (val instanceof Map) {
+            return {
+              type: 'Map',
+              entries: Array.from(val.entries()),
+            };
+          }
+
+          if (val instanceof Set) {
+            return {
+              type: 'Set',
+              values: Array.from(val.values()),
+            };
+          }
+        }
+
         return val;
-      }
-      
-      if (typeof val === 'object') {
-        depth++;
-        if (seen.has(val)) {
-          return '[Circular Reference]';
-        }
-        seen.add(val);
-        
-        // Handle special objects
-        if (val instanceof Buffer) {
-          return `[Buffer: ${val.length} bytes]`;
-        }
-        
-        if (val instanceof Promise) {
-          return '[Promise]';
-        }
-        
-        if (val instanceof WeakMap || val instanceof WeakSet) {
-          return `[${val.constructor.name}]`;
-        }
-      }
-      
-      if (typeof val === 'function') {
-        return `[Function: ${val.name || 'anonymous'}]`;
-      }
-      
-      if (typeof val === 'symbol') {
-        return `[Symbol: ${val.toString()}]`;
-      }
-      
-      if (typeof val === 'bigint') {
-        return val.toString() + 'n';
-      }
-      
-      if (val instanceof Error) {
-        return {
-          name: val.name,
-          message: val.message,
-          stack: val.stack,
-          code: (val as any).code,
-        };
-      }
-      
-      if (val instanceof Date) {
-        return val.toISOString();
-      }
-      
-      if (val instanceof RegExp) {
-        return val.toString();
-      }
-      
-      if (val instanceof Map) {
-        return {
-          type: 'Map',
-          entries: Array.from(val.entries()),
-        };
-      }
-      
-      if (val instanceof Set) {
-        return {
-          type: 'Set',
-          values: Array.from(val.values()),
-        };
-      }
-      
-      return val;
-    }, 2);
+      },
+      0
+    );
   } catch (error) {
     return `[Unserializable: ${error instanceof Error ? error.message : 'Unknown error'}]`;
   }
+}
+
+function getObjectDepth(value: unknown, maxDepth: number): number {
+  if (value === null || typeof value !== 'object') {
+    return 0;
+  }
+
+  let currentDepth = 0;
+  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 1 }];
+  const visited = new WeakSet<object>();
+
+  while (stack.length > 0) {
+    const item = stack.pop();
+    if (!item) {
+      continue;
+    }
+
+    const { value: current, depth } = item;
+    if (depth > currentDepth) {
+      currentDepth = depth;
+    }
+
+    if (currentDepth > maxDepth) {
+      return currentDepth;
+    }
+
+    if (current === null || typeof current !== 'object') {
+      continue;
+    }
+
+    if (visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+
+    for (const nested of Object.values(current as Record<string, unknown>)) {
+      if (nested && typeof nested === 'object') {
+        stack.push({ value: nested, depth: depth + 1 });
+      }
+    }
+  }
+
+  return currentDepth;
 }
 
 /**
  * Detect sensitive data in a string
  */
 export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
-  // Check against patterns
   for (const pattern of patterns) {
     if (pattern.test(text)) {
       return true;
     }
   }
-  
-  // Check for common sensitive patterns
+
   const commonPatterns = [
     /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, // Email
     /\b(?:\d{4}[-\s]?){3}\d{4}\b/, // Credit card
     /\b\d{3}-\d{2}-\d{4}\b/, // SSN
     /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/, // CPF (Brazilian)
-    /Bearer\s+[A-Za-z0-9\-._~+\/]+=*/i, // Bearer tokens
-    /Basic\s+[A-Za-z0-9+\/]+=*/i, // Basic auth
+    /Bearer\s+[A-Za-z0-9\-._~+\/=]*/i, // Bearer tokens
+    /Basic\s+[A-Za-z0-9+\/=]*/i, // Basic auth
   ];
-  
+
   for (const pattern of commonPatterns) {
     if (pattern.test(text)) {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -154,45 +346,55 @@ export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
  */
 export function sanitizeData(
   data: Record<string, unknown>,
-  sensitivePatterns: RegExp[]
+  sensitivePatterns: RegExp[],
+  seen: WeakSet<object> = new WeakSet()
 ): Record<string, unknown> {
+  if (seen.has(data)) {
+    return { _circular: '[REDACTED]' };
+  }
+
+  seen.add(data);
+
   const sanitized: Record<string, unknown> = {};
-  
+
   for (const [key, value] of Object.entries(data)) {
-    // Check if key matches sensitive patterns
-    const isKeySensitive = sensitivePatterns.some(pattern => pattern.test(key));
-    
+    const isKeySensitive = sensitivePatterns.some((pattern) => pattern.test(key));
+
     if (isKeySensitive) {
       sanitized[key] = '[REDACTED]';
       continue;
     }
-    
-    // Handle different value types
+
     if (typeof value === 'string') {
-      if (detectSensitiveData(value, sensitivePatterns)) {
-        sanitized[key] = '[REDACTED]';
-      } else {
-        sanitized[key] = value;
-      }
-    } else if (typeof value === 'object' && value !== null) {
-      if (Array.isArray(value)) {
-        sanitized[key] = value.map(item => {
-          if (typeof item === 'string' && detectSensitiveData(item, sensitivePatterns)) {
-            return '[REDACTED]';
-          }
-          if (typeof item === 'object' && item !== null) {
-            return sanitizeData(item as Record<string, unknown>, sensitivePatterns);
-          }
-          return item;
-        });
-      } else {
-        sanitized[key] = sanitizeData(value as Record<string, unknown>, sensitivePatterns);
-      }
-    } else {
-      sanitized[key] = value;
+      sanitized[key] = detectSensitiveData(value, sensitivePatterns)
+        ? '[REDACTED]'
+        : value;
+      continue;
     }
+
+    if (Array.isArray(value)) {
+      sanitized[key] = value.map((item) => {
+        if (typeof item === 'string') {
+          return detectSensitiveData(item, sensitivePatterns) ? '[REDACTED]' : item;
+        }
+
+        if (item && typeof item === 'object') {
+          return sanitizeData(item as Record<string, unknown>, sensitivePatterns, seen);
+        }
+
+        return item;
+      });
+      continue;
+    }
+
+    if (value && typeof value === 'object') {
+      sanitized[key] = sanitizeData(value as Record<string, unknown>, sensitivePatterns, seen);
+      continue;
+    }
+
+    sanitized[key] = value;
   }
-  
+
   return sanitized;
 }
 
@@ -200,11 +402,7 @@ export function sanitizeData(
  * Hash sensitive data for tracking without exposing it
  */
 export function hashSensitiveData(data: string): string {
-  return crypto
-    .createHash('sha256')
-    .update(data)
-    .digest('hex')
-    .substring(0, 16);
+  return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
 }
 
 /**
@@ -213,18 +411,16 @@ export function hashSensitiveData(data: string): string {
  */
 export function parseLabels(labelsString: string): Record<string, string> {
   const labels: Record<string, string> = {};
-  
+
   if (!labelsString) {
     return labels;
   }
-  
+
   try {
-    // Support JSON format
     if (labelsString.startsWith('{')) {
       return JSON.parse(labelsString);
     }
-    
-    // Support key=value format
+
     const pairs = labelsString.split(',');
     for (const pair of pairs) {
       const [key, ...valueParts] = pair.split('=');
@@ -233,9 +429,9 @@ export function parseLabels(labelsString: string): Record<string, string> {
       }
     }
   } catch (error) {
-    console.warn('Failed to parse labels from environment:', error);
+    internalWarn('Failed to parse labels from environment', error);
   }
-  
+
   return labels;
 }
 
@@ -258,26 +454,25 @@ export function shouldSampleAdvanced(
 ): boolean {
   if (rate >= 1.0) return true;
   if (rate <= 0.0) return false;
-  
+
   switch (strategy) {
     case 'random':
       return Math.random() < rate;
-      
-    case 'deterministic':
-      // Use a hash of the key to determine sampling
+
+    case 'deterministic': {
       if (!key) return Math.random() < rate;
       const hash = crypto.createHash('md5').update(key).digest();
-      const hashValue = hash.readUInt32BE(0) / 0xFFFFFFFF;
+      const hashValue = hash.readUInt32BE(0) / 0xffffffff;
       return hashValue < rate;
-      
-    case 'adaptive':
-      // Implement adaptive sampling based on load
-      // This is a simplified version - in production, you'd track actual load
+    }
+
+    case 'adaptive': {
       const cpuUsage = process.cpuUsage();
-      const loadFactor = Math.min(1, cpuUsage.user / 1000000000); // Normalize to 0-1
-      const adjustedRate = rate * (1 - loadFactor * 0.5); // Reduce sampling under load
+      const loadFactor = Math.min(1, cpuUsage.user / 1_000_000_000);
+      const adjustedRate = rate * (1 - loadFactor * 0.5);
       return Math.random() < adjustedRate;
-      
+    }
+
     default:
       return Math.random() < rate;
   }
@@ -290,7 +485,7 @@ export function formatBytes(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   if (bytes === 0) return '0 Bytes';
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
 }
 
 /**
@@ -306,120 +501,108 @@ export function calculateCompressionRatio(original: number, compressed: number):
  */
 export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
   const env = process.env as EnvironmentConfig;
-  
-  const config: any = {};
-  
-  // Transport configuration
-  if (env.LOGS_INTERCEPTOR_URL || env.LOGS_INTERCEPTOR_TENANT_ID || env.LOGS_INTERCEPTOR_AUTH_TOKEN) {
-    const transport: any = {};
-    if (env.LOGS_INTERCEPTOR_URL) {
-      transport.url = env.LOGS_INTERCEPTOR_URL;
-    }
-    if (env.LOGS_INTERCEPTOR_TENANT_ID) {
-      transport.tenantId = env.LOGS_INTERCEPTOR_TENANT_ID;
-    }
-    if (env.LOGS_INTERCEPTOR_AUTH_TOKEN) {
-      transport.authToken = env.LOGS_INTERCEPTOR_AUTH_TOKEN;
-    }
-    config.transport = transport;
-  }
-  
-  // Application metadata
-  if (env.LOGS_INTERCEPTOR_APP_NAME) {
-    config.appName = env.LOGS_INTERCEPTOR_APP_NAME;
-  }
-  
-  if (env.LOGS_INTERCEPTOR_ENVIRONMENT) {
-    config.environment = env.LOGS_INTERCEPTOR_ENVIRONMENT;
-  }
-  
-  if (env.LOGS_INTERCEPTOR_VERSION) {
-    config.version = env.LOGS_INTERCEPTOR_VERSION;
-  }
-  
-  // Labels
-  if (env.LOGS_INTERCEPTOR_LABELS) {
-    config.labels = parseLabels(env.LOGS_INTERCEPTOR_LABELS);
-  }
-  
-  // Buffer configuration
-  const buffer: any = {};
-  if (env.LOGS_INTERCEPTOR_BUFFER_SIZE) {
-    const bufferSize = parseInt(env.LOGS_INTERCEPTOR_BUFFER_SIZE, 10);
-    if (!isNaN(bufferSize) && bufferSize > 0) {
-      buffer.maxSize = bufferSize;
-    }
-  }
-  
-  if (env.LOGS_INTERCEPTOR_MAX_MEMORY_MB) {
-    const maxMemory = parseInt(env.LOGS_INTERCEPTOR_MAX_MEMORY_MB, 10);
-    if (!isNaN(maxMemory) && maxMemory > 0) {
-      buffer.maxMemoryMB = maxMemory;
-    }
-  }
-  
-  if (env.LOGS_INTERCEPTOR_FLUSH_INTERVAL) {
-    const flushInterval = parseInt(env.LOGS_INTERCEPTOR_FLUSH_INTERVAL, 10);
-    if (!isNaN(flushInterval) && flushInterval > 0) {
-      buffer.flushInterval = flushInterval;
-    }
-  }
-  
-  if (Object.keys(buffer).length > 0) {
-    config.buffer = buffer;
-  }
-  
-  // Filtering
-  const filter: any = {};
-  if (env.LOGS_INTERCEPTOR_LOG_LEVEL) {
-    const levels = env.LOGS_INTERCEPTOR_LOG_LEVEL.split(',')
-      .map(level => level.trim().toLowerCase())
-      .filter(level => ['debug', 'info', 'warn', 'error', 'fatal'].includes(level));
-    
-    if (levels.length > 0) {
-      filter.levels = levels as any[];
-    }
-  }
-  
-  if (env.LOGS_INTERCEPTOR_SAMPLING_RATE) {
-    const samplingRate = parseFloat(env.LOGS_INTERCEPTOR_SAMPLING_RATE);
-    if (!isNaN(samplingRate) && samplingRate >= 0 && samplingRate <= 1) {
-      filter.samplingRate = samplingRate;
-    }
-  }
-  
-  if (env.LOGS_INTERCEPTOR_SANITIZE) {
-    filter.sanitize = env.LOGS_INTERCEPTOR_SANITIZE.toLowerCase() === 'true';
-  }
-  
-  if (Object.keys(filter).length > 0) {
-    config.filter = filter;
-  }
-  
-  // Circuit breaker
-  if (env.LOGS_INTERCEPTOR_CIRCUIT_BREAKER) {
-    config.circuitBreaker = {
-      enabled: env.LOGS_INTERCEPTOR_CIRCUIT_BREAKER.toLowerCase() === 'true',
+
+  if (!parseBool(env.LOGS_ENABLED, true)) {
+    return {
+      filter: {
+        levels: [],
+      },
     };
   }
-  
-  // Feature flags
-  if (env.LOGS_INTERCEPTOR_DEBUG) {
-    config.debug = env.LOGS_INTERCEPTOR_DEBUG.toLowerCase() === 'true';
-  }
-  
-  if (env.LOGS_INTERCEPTOR_ENABLED) {
-    const enabled = env.LOGS_INTERCEPTOR_ENABLED.toLowerCase() === 'true';
-    if (!enabled) {
-      // Return a minimal config that effectively disables logging
-      return {
-        filter: {
-          levels: [],
-        },
-      };
+
+  const labels: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (!key.startsWith('LOGS_LABEL_') || value === undefined) {
+      continue;
+    }
+
+    const labelKey = key.slice('LOGS_LABEL_'.length).toLowerCase();
+    if (labelKey.length > 0) {
+      labels[labelKey] = value;
     }
   }
-  
+
+  const levels = (env.LOGS_FILTER_LEVELS || 'debug,info,warn,error,fatal')
+    .split(',')
+    .map((level) => level.trim().toLowerCase())
+    .filter((level): level is LogLevel => LogLevelVO.isValid(level));
+
+  const compression =
+    env.LOGS_COMPRESSION === 'none' ||
+    env.LOGS_COMPRESSION === 'gzip' ||
+    env.LOGS_COMPRESSION === 'brotli' ||
+    env.LOGS_COMPRESSION === 'snappy'
+      ? env.LOGS_COMPRESSION
+      : 'gzip';
+
+  const dlqType = env.LOGS_DLQ_TYPE === 'file' ? 'file' : 'memory';
+
+  const config: Partial<LogsInterceptorConfig> = {
+    transport: {
+      url: env.LOGS_URL ?? '',
+      tenantId: env.LOGS_TENANT ?? '',
+      authToken: env.LOGS_TOKEN,
+      timeout: parseIntRange(env.LOGS_TIMEOUT, 10_000, 0, 600_000),
+      maxRetries: parseIntRange(env.LOGS_MAX_RETRIES, 3, 0, 20),
+      retryDelay: parseIntRange(env.LOGS_RETRY_DELAY, 1_000, 0, 120_000),
+      compression,
+      compressionLevel: parseIntRange(env.LOGS_COMPRESSION_LEVEL, 6, 0, 11),
+      compressionThreshold: parseIntRange(env.LOGS_COMPRESSION_THRESHOLD, 1024, 0, Number.MAX_SAFE_INTEGER),
+      useWorkers: parseBool(env.LOGS_USE_WORKERS, true),
+      maxWorkers: parseIntRange(env.LOGS_MAX_WORKERS, 2, 1, 64),
+      enableConnectionPooling: parseBool(env.LOGS_CONNECTION_POOLING, true),
+      maxSockets: parseIntRange(env.LOGS_MAX_SOCKETS, 50, 1, 1024),
+      workerTimeout: parseIntRange(env.LOGS_WORKER_TIMEOUT, 30_000, 1_000, 300_000),
+    },
+    appName: env.LOGS_APP_NAME ?? '',
+    environment: env.LOGS_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production',
+    version: env.LOGS_APP_VERSION ?? '1.0.0',
+    labels,
+    buffer: {
+      maxSize: parseIntRange(env.LOGS_BUFFER_MAX_SIZE, 100, 1, 1_000_000),
+      flushInterval: parseIntRange(env.LOGS_BUFFER_FLUSH_INTERVAL, 5_000, 1, 300_000),
+      maxMemoryMB: parseIntRange(env.LOGS_BUFFER_MAX_MEMORY_MB, 50, 1, 32_768),
+      maxAge: parseIntRange(env.LOGS_BUFFER_MAX_AGE, 30_000, 100, 86_400_000),
+      autoFlush: parseBool(env.LOGS_BUFFER_AUTO_FLUSH, true),
+    },
+    filter: {
+      levels,
+      samplingRate: parseFloatRange(env.LOGS_FILTER_SAMPLING_RATE, 1.0, 0, 1),
+      sanitize: parseBool(env.LOGS_FILTER_SANITIZE, true),
+      maxMessageLength: parseIntRange(env.LOGS_FILTER_MAX_MESSAGE_LENGTH, 8192, 64, 1_000_000),
+    },
+    circuitBreaker: {
+      enabled: parseBool(env.LOGS_CIRCUIT_BREAKER_ENABLED, true),
+      failureThreshold: parseIntRange(env.LOGS_CIRCUIT_BREAKER_FAILURE_THRESHOLD, 50, 1, 100_000),
+      resetTimeout: parseIntRange(env.LOGS_CIRCUIT_BREAKER_RESET_TIMEOUT, 30_000, 1_000, 3_600_000),
+      halfOpenRequests: parseIntRange(env.LOGS_CIRCUIT_BREAKER_HALF_OPEN_REQUESTS, 3, 1, 100),
+    },
+    deadLetterQueue: {
+      enabled: parseBool(env.LOGS_DLQ_ENABLED, true),
+      type: dlqType,
+      maxSize: parseIntRange(env.LOGS_DLQ_MAX_SIZE, 1000, 1, 1_000_000),
+      maxRetries: parseIntRange(env.LOGS_DLQ_MAX_RETRIES, 3, 0, 100),
+      basePath: env.LOGS_DLQ_BASE_PATH ?? './.logs-dlq',
+    },
+    performance: {
+      useWorkers: parseBool(env.LOGS_USE_WORKERS, true),
+      maxConcurrentFlushes: parseIntRange(env.LOGS_MAX_CONCURRENT_FLUSHES, 3, 1, 256),
+      maxWorkers: parseIntRange(env.LOGS_MAX_WORKERS, 2, 1, 64),
+      compressionLevel: parseIntRange(env.LOGS_COMPRESSION_LEVEL, 6, 0, 11),
+      workerTimeout: parseIntRange(env.LOGS_WORKER_TIMEOUT, 30_000, 1_000, 300_000),
+    },
+    interceptConsole: parseBool(env.LOGS_INTERCEPT_CONSOLE, false),
+    preserveOriginalConsole: parseBool(env.LOGS_PRESERVE_ORIGINAL_CONSOLE, true),
+    enableMetrics: parseBool(env.LOGS_ENABLE_METRICS, true),
+    enableHealthCheck: parseBool(env.LOGS_ENABLE_HEALTH_CHECK, true),
+    debug: parseBool(env.LOGS_DEBUG, false),
+    silentErrors: parseBool(env.LOGS_SILENT_ERRORS, false),
+  };
+
+  if (!config.transport?.url && !config.transport?.tenantId && !config.appName) {
+    return {};
+  }
+
   return config;
 }
 
@@ -430,39 +613,50 @@ export function mergeConfigs(
   userConfig: Partial<LogsInterceptorConfig>,
   envConfig: Partial<LogsInterceptorConfig>
 ): Partial<LogsInterceptorConfig> {
-  // Handle transport merge carefully
-  const transport = envConfig.transport || userConfig.transport
-    ? { ...envConfig.transport, ...userConfig.transport } as TransportOptions
-    : undefined;
+  const transport =
+    envConfig.transport || userConfig.transport
+      ? ({ ...envConfig.transport, ...userConfig.transport } as TransportOptions)
+      : undefined;
 
-  // Handle other nested objects
-  const buffer = envConfig.buffer || userConfig.buffer
-    ? { ...envConfig.buffer, ...userConfig.buffer }
-    : undefined;
-  
-  const filter = envConfig.filter || userConfig.filter
-    ? { ...envConfig.filter, ...userConfig.filter }
-    : undefined;
-  
-  const labels = envConfig.labels || userConfig.labels
-    ? { ...envConfig.labels, ...userConfig.labels }
-    : undefined;
-  
-  const dynamicLabels = envConfig.dynamicLabels || userConfig.dynamicLabels
-    ? { ...envConfig.dynamicLabels, ...userConfig.dynamicLabels }
-    : undefined;
-  
-  const circuitBreaker = envConfig.circuitBreaker || userConfig.circuitBreaker
-    ? { ...envConfig.circuitBreaker, ...userConfig.circuitBreaker }
-    : undefined;
-  
-  const integrations = envConfig.integrations || userConfig.integrations
-    ? { ...envConfig.integrations, ...userConfig.integrations }
-    : undefined;
-  
-  const performance = envConfig.performance || userConfig.performance
-    ? { ...envConfig.performance, ...userConfig.performance }
-    : undefined;
+  const buffer =
+    envConfig.buffer || userConfig.buffer
+      ? { ...envConfig.buffer, ...userConfig.buffer }
+      : undefined;
+
+  const filter =
+    envConfig.filter || userConfig.filter
+      ? { ...envConfig.filter, ...userConfig.filter }
+      : undefined;
+
+  const labels =
+    envConfig.labels || userConfig.labels
+      ? { ...envConfig.labels, ...userConfig.labels }
+      : undefined;
+
+  const dynamicLabels =
+    envConfig.dynamicLabels || userConfig.dynamicLabels
+      ? { ...envConfig.dynamicLabels, ...userConfig.dynamicLabels }
+      : undefined;
+
+  const circuitBreaker =
+    envConfig.circuitBreaker || userConfig.circuitBreaker
+      ? { ...envConfig.circuitBreaker, ...userConfig.circuitBreaker }
+      : undefined;
+
+  const integrations =
+    envConfig.integrations || userConfig.integrations
+      ? { ...envConfig.integrations, ...userConfig.integrations }
+      : undefined;
+
+  const performance =
+    envConfig.performance || userConfig.performance
+      ? { ...envConfig.performance, ...userConfig.performance }
+      : undefined;
+
+  const deadLetterQueue =
+    envConfig.deadLetterQueue || userConfig.deadLetterQueue
+      ? { ...envConfig.deadLetterQueue, ...userConfig.deadLetterQueue }
+      : undefined;
 
   return {
     ...envConfig,
@@ -475,10 +669,9 @@ export function mergeConfigs(
     ...(circuitBreaker ? { circuitBreaker } : {}),
     ...(integrations ? { integrations } : {}),
     ...(performance ? { performance } : {}),
+    ...(deadLetterQueue ? { deadLetterQueue } : {}),
   };
 }
-
-// validateConfig moved to ConfigService
 
 /**
  * Create a correlation ID for request tracking
@@ -496,10 +689,9 @@ export function extractErrorMetadata(error: Error): Record<string, unknown> {
     message: error.message,
     stack: error.stack,
   };
-  
-  // Extract additional properties
+
   const errorObj = error as any;
-  
+
   if (errorObj.code) metadata.code = errorObj.code;
   if (errorObj.statusCode) metadata.statusCode = errorObj.statusCode;
   if (errorObj.syscall) metadata.syscall = errorObj.syscall;
@@ -507,33 +699,40 @@ export function extractErrorMetadata(error: Error): Record<string, unknown> {
   if (errorObj.path) metadata.path = errorObj.path;
   if (errorObj.address) metadata.address = errorObj.address;
   if (errorObj.port) metadata.port = errorObj.port;
-  
+
   return metadata;
 }
 
 /**
  * Parse stack trace to extract useful information
  */
-export function parseStackTrace(stack: string): Array<{
+export function parseStackTrace(
+  stack: string
+): Array<{
   function: string;
   file: string;
   line: number;
   column: number;
 }> {
   const lines = stack.split('\n');
-  const frames: Array<any> = [];
-  
+  const frames: Array<{
+    function: string;
+    file: string;
+    line: number;
+    column: number;
+  }> = [];
+
   for (const line of lines) {
     const match = line.match(/at\s+(.*?)\s+\((.*?):(\d+):(\d+)\)/);
     if (match) {
       frames.push({
         function: match[1],
         file: match[2],
-        line: parseInt(match[3], 10),
-        column: parseInt(match[4], 10),
+        line: Number.parseInt(match[3], 10),
+        column: Number.parseInt(match[4], 10),
       });
     }
   }
-  
-  return frames.slice(0, 10); // Limit to 10 frames
+
+  return frames.slice(0, 10);
 }

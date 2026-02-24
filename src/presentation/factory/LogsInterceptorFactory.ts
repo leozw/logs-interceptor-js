@@ -95,6 +95,7 @@ export class LogsInterceptorFactory {
         labels: config.labels,
         dynamicLabels,
         enableMetrics: config.enableMetrics,
+        maxConcurrentFlushes: config.performance.maxConcurrentFlushes,
       }
     );
 
@@ -108,9 +109,14 @@ export class LogsInterceptorFactory {
       consoleInterceptor.enable();
     }
 
+    // Ensure direct logger.destroy() also restores console methods.
+    const originalDestroy = logger.destroy.bind(logger);
+    logger.destroy = async () => {
+      consoleInterceptor?.restore();
+      await originalDestroy();
+    };
+
     return { logger, consoleInterceptor };
   }
 }
-
-
 

@@ -2,8 +2,12 @@
  * Infrastructure: In-Memory Dead Letter Queue
  * Simple in-memory implementation for testing or low-volume scenarios
  */
+import {
+  DeadLetterQueueStats,
+  DLQAddResult,
+  IDeadLetterQueue,
+} from '../../domain/interfaces/IDeadLetterQueue';
 import { LogEntry } from '../../domain/entities/LogEntry';
-import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
 
 interface DLQEntry {
   entry: LogEntry;
@@ -15,18 +19,27 @@ interface DLQEntry {
 export class MemoryDeadLetterQueue implements IDeadLetterQueue {
   private queue: DLQEntry[] = [];
   private readonly maxSize: number;
+  private droppedEntries = 0;
 
   constructor(maxSize: number = 1000) {
     this.maxSize = maxSize;
   }
 
-  async add(entry: LogEntry, reason: string): Promise<void> {
+  async add(entry: LogEntry, reason: string): Promise<DLQAddResult> {
     return this.addBatch([entry], reason);
   }
 
-  async addBatch(entries: LogEntry[], reason: string): Promise<void> {
+  async addBatch(entries: LogEntry[], reason: string): Promise<DLQAddResult> {
     const timestamp = Date.now();
+    let dropped = 0;
+
     for (const entry of entries) {
+      if (this.queue.length >= this.maxSize) {
+        this.queue.shift();
+        this.droppedEntries++;
+        dropped++;
+      }
+
       this.queue.push({
         entry,
         reason,
@@ -35,10 +48,10 @@ export class MemoryDeadLetterQueue implements IDeadLetterQueue {
       });
     }
 
-    // Trim execution is cheap in memory
-    if (this.queue.length > this.maxSize) {
-      this.queue = this.queue.slice(this.queue.length - this.maxSize);
-    }
+    return {
+      added: entries.length,
+      dropped,
+    };
   }
 
   async flush(): Promise<number> {
@@ -55,9 +68,18 @@ export class MemoryDeadLetterQueue implements IDeadLetterQueue {
     this.queue = [];
   }
 
-  async getEntries(limit: number = 100): Promise<Array<{ entry: LogEntry; reason: string; timestamp: number }>> {
+  async getEntries(
+    limit: number = 100
+  ): Promise<Array<{ entry: LogEntry; reason: string; timestamp: number }>> {
     return this.queue
       .slice(0, limit)
       .map(({ entry, reason, timestamp }) => ({ entry, reason, timestamp }));
+  }
+
+  getStats(): DeadLetterQueueStats {
+    return {
+      size: this.queue.length,
+      droppedEntries: this.droppedEntries,
+    };
   }
 }

@@ -47,7 +47,9 @@ export interface TransportMetrics {
   avgCompressionRatio?: number;
   totalBytesSent?: number;
   totalBytesCompressed?: number;
+  retryAttempts?: number;
+  retriedRequests?: number;
+  dlqDroppedEntries?: number;
 }
-
 
 

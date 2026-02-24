@@ -241,6 +241,8 @@ export interface LoggerMetrics {
   memoryUsage: number;
   cpuUsage: number;
   circuitBreakerTrips: number;
+  droppedByBackpressure: number;
+  droppedByDlq: number;
 }
 
 export interface HealthStatus {
@@ -262,31 +264,56 @@ export interface LoggerInstance {
   fatal(message: string, context?: Record<string, unknown>): void;
   trackEvent(eventName: string, properties?: Record<string, unknown>): void;
   flush(): Promise<void>;
-  runWithContext<T>(context: Record<string, any>, fn: () => T): T;
-  runWithContextAsync<T>(context: Record<string, any>, fn: () => Promise<T>): Promise<T>;
+  withContext<T>(context: Record<string, unknown>, fn: () => T): T;
+  withContextAsync<T>(
+    context: Record<string, unknown>,
+    fn: () => Promise<T>
+  ): Promise<T>;
   getMetrics(): LoggerMetrics;
   getHealth(): HealthStatus;
-  getWinstonTransport(): any;
-  getPinoStream(): any;
-  getMorganStream(): any;
   destroy(): Promise<void>;
 }
 
 export interface EnvironmentConfig {
-  LOGS_INTERCEPTOR_URL?: string;
-  LOGS_INTERCEPTOR_TENANT_ID?: string;
-  LOGS_INTERCEPTOR_AUTH_TOKEN?: string;
-  LOGS_INTERCEPTOR_APP_NAME?: string;
-  LOGS_INTERCEPTOR_ENVIRONMENT?: string;
-  LOGS_INTERCEPTOR_VERSION?: string;
-  LOGS_INTERCEPTOR_LABELS?: string;
-  LOGS_INTERCEPTOR_BUFFER_SIZE?: string;
-  LOGS_INTERCEPTOR_FLUSH_INTERVAL?: string;
-  LOGS_INTERCEPTOR_LOG_LEVEL?: string;
-  LOGS_INTERCEPTOR_ENABLED?: string;
-  LOGS_INTERCEPTOR_DEBUG?: string;
-  LOGS_INTERCEPTOR_SAMPLING_RATE?: string;
-  LOGS_INTERCEPTOR_CIRCUIT_BREAKER?: string;
-  LOGS_INTERCEPTOR_SANITIZE?: string;
-  LOGS_INTERCEPTOR_MAX_MEMORY_MB?: string;
+  LOGS_URL?: string;
+  LOGS_TENANT?: string;
+  LOGS_TOKEN?: string;
+  LOGS_APP_NAME?: string;
+  LOGS_APP_VERSION?: string;
+  LOGS_ENVIRONMENT?: string;
+  LOGS_COMPRESSION?: string;
+  LOGS_COMPRESSION_LEVEL?: string;
+  LOGS_COMPRESSION_THRESHOLD?: string;
+  LOGS_USE_WORKERS?: string;
+  LOGS_MAX_WORKERS?: string;
+  LOGS_CONNECTION_POOLING?: string;
+  LOGS_MAX_SOCKETS?: string;
+  LOGS_TIMEOUT?: string;
+  LOGS_MAX_RETRIES?: string;
+  LOGS_RETRY_DELAY?: string;
+  LOGS_BUFFER_MAX_SIZE?: string;
+  LOGS_BUFFER_FLUSH_INTERVAL?: string;
+  LOGS_BUFFER_MAX_MEMORY_MB?: string;
+  LOGS_BUFFER_MAX_AGE?: string;
+  LOGS_BUFFER_AUTO_FLUSH?: string;
+  LOGS_FILTER_LEVELS?: string;
+  LOGS_FILTER_SAMPLING_RATE?: string;
+  LOGS_FILTER_SANITIZE?: string;
+  LOGS_FILTER_MAX_MESSAGE_LENGTH?: string;
+  LOGS_CIRCUIT_BREAKER_ENABLED?: string;
+  LOGS_CIRCUIT_BREAKER_FAILURE_THRESHOLD?: string;
+  LOGS_CIRCUIT_BREAKER_RESET_TIMEOUT?: string;
+  LOGS_CIRCUIT_BREAKER_HALF_OPEN_REQUESTS?: string;
+  LOGS_DLQ_ENABLED?: string;
+  LOGS_DLQ_TYPE?: string;
+  LOGS_DLQ_MAX_SIZE?: string;
+  LOGS_DLQ_MAX_RETRIES?: string;
+  LOGS_DLQ_BASE_PATH?: string;
+  LOGS_MAX_CONCURRENT_FLUSHES?: string;
+  LOGS_INTERCEPT_CONSOLE?: string;
+  LOGS_PRESERVE_ORIGINAL_CONSOLE?: string;
+  LOGS_ENABLE_METRICS?: string;
+  LOGS_ENABLE_HEALTH_CHECK?: string;
+  LOGS_DEBUG?: string;
+  LOGS_SILENT_ERRORS?: string;
 }

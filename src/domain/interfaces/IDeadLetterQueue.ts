@@ -10,12 +10,12 @@ export interface IDeadLetterQueue {
    * @param entry Log entry that failed to send
    * @param reason Reason for failure
    */
-  add(entry: LogEntry, reason: string): Promise<void>;
+  add(entry: LogEntry, reason: string): Promise<DLQAddResult>;
 
   /**
    * Add multiple entries to DLQ in a single batch
    */
-  addBatch(entries: LogEntry[], reason: string): Promise<void>;
+  addBatch(entries: LogEntry[], reason: string): Promise<DLQAddResult>;
 
   /**
    * Attempt to flush entries from DLQ
@@ -36,4 +36,19 @@ export interface IDeadLetterQueue {
    * Get entries (for retry or inspection)
    */
   getEntries(limit?: number): Promise<Array<{ entry: LogEntry; reason: string; timestamp: number }>>;
+
+  /**
+   * Queue statistics
+   */
+  getStats(): DeadLetterQueueStats;
+}
+
+export interface DLQAddResult {
+  added: number;
+  dropped: number;
+}
+
+export interface DeadLetterQueueStats {
+  size: number;
+  droppedEntries: number;
 }
