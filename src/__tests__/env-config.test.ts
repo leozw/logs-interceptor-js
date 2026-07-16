@@ -1,4 +1,5 @@
 import { loadConfigFromEnv } from '../utils';
+import { ConfigService } from '../application/services/ConfigService';
 
 describe('Environment configuration (LOGS_*)', () => {
   const originalEnv = process.env;
@@ -31,6 +32,8 @@ describe('Environment configuration (LOGS_*)', () => {
     process.env.LOGS_MAX_RETRIES = '0';
     process.env.LOGS_RETRY_DELAY = '0';
     process.env.LOGS_FILTER_SAMPLING_RATE = '0.0';
+    process.env.LOGS_FILTER_MAX_CONTEXT_BYTES = '4096';
+    process.env.LOGS_MAX_PENDING_BATCHES = '3';
     process.env.LOGS_COMPRESSION_LEVEL = '0';
 
     const config = loadConfigFromEnv();
@@ -39,6 +42,8 @@ describe('Environment configuration (LOGS_*)', () => {
     expect(config.transport?.maxRetries).toBe(0);
     expect(config.transport?.retryDelay).toBe(0);
     expect(config.filter?.samplingRate).toBe(0);
+    expect(config.filter?.maxContextBytes).toBe(4096);
+    expect(config.performance?.maxPendingBatches).toBe(3);
     expect(config.transport?.compressionLevel).toBe(0);
   });
 
@@ -55,5 +60,23 @@ describe('Environment configuration (LOGS_*)', () => {
       service: 'busca-prd',
       environment: 'prd',
     });
+  });
+
+  it('should resolve economy defaults without worker threads', () => {
+    const config = ConfigService.resolve({
+      appName: 'app-a',
+      transport: {
+        url: 'https://loki.example.com/loki/api/v1/push',
+        tenantId: 'tenant-a',
+      },
+    });
+
+    expect(config.transport.timeout).toBe(5_000);
+    expect(config.transport.maxRetries).toBe(1);
+    expect(config.transport.useWorkers).toBe(false);
+    expect(config.transport.maxSockets).toBe(10);
+    expect(config.buffer.maxMemoryMB).toBe(32);
+    expect(config.performance.maxConcurrentFlushes).toBe(2);
+    expect(config.performance.maxPendingBatches).toBe(2);
   });
 });

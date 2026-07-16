@@ -2,6 +2,12 @@ import * as crypto from 'crypto';
 import { LogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
 import { LogLevel, LogLevelVO } from './domain/value-objects/LogLevel';
 
+const internalConsole = {
+  debug: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+};
+
 export interface EnvironmentConfig {
   LOGS_URL?: string;
   LOGS_TENANT?: string;
@@ -31,6 +37,7 @@ export interface EnvironmentConfig {
   LOGS_FILTER_SAMPLING_RATE?: string;
   LOGS_FILTER_SANITIZE?: string;
   LOGS_FILTER_MAX_MESSAGE_LENGTH?: string;
+  LOGS_FILTER_MAX_CONTEXT_BYTES?: string;
 
   LOGS_CIRCUIT_BREAKER_ENABLED?: string;
   LOGS_CIRCUIT_BREAKER_FAILURE_THRESHOLD?: string;
@@ -44,6 +51,7 @@ export interface EnvironmentConfig {
   LOGS_DLQ_BASE_PATH?: string;
 
   LOGS_MAX_CONCURRENT_FLUSHES?: string;
+  LOGS_MAX_PENDING_BATCHES?: string;
   LOGS_WORKER_TIMEOUT?: string;
 
   LOGS_INTERCEPT_CONSOLE?: string;
@@ -146,11 +154,11 @@ export function internalDebug(message: string, context?: unknown): void {
   }
 
   if (context !== undefined) {
-    console.log(`[logs-interceptor] ${message}`, context);
+    internalConsole.debug(`[logs-interceptor] ${message}`, context);
     return;
   }
 
-  console.log(`[logs-interceptor] ${message}`);
+  internalConsole.debug(`[logs-interceptor] ${message}`);
 }
 
 export function internalWarn(message: string, context?: unknown): void {
@@ -159,11 +167,11 @@ export function internalWarn(message: string, context?: unknown): void {
   }
 
   if (context !== undefined) {
-    console.warn(`[logs-interceptor] ${message}`, context);
+    internalConsole.warn(`[logs-interceptor] ${message}`, context);
     return;
   }
 
-  console.warn(`[logs-interceptor] ${message}`);
+  internalConsole.warn(`[logs-interceptor] ${message}`);
 }
 
 export function internalError(message: string, context?: unknown): void {
@@ -172,11 +180,11 @@ export function internalError(message: string, context?: unknown): void {
   }
 
   if (context !== undefined) {
-    console.error(`[logs-interceptor] ${message}`, context);
+    internalConsole.error(`[logs-interceptor] ${message}`, context);
     return;
   }
 
-  console.error(`[logs-interceptor] ${message}`);
+  internalConsole.error(`[logs-interceptor] ${message}`);
 }
 
 /**
@@ -346,18 +354,28 @@ export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
  */
 export function sanitizeData(
   data: Record<string, unknown>,
-  sensitivePatterns: RegExp[],
-  seen: WeakSet<object> = new WeakSet()
+  sensitivePatterns: RegExp[]
 ): Record<string, unknown> {
-  if (seen.has(data)) {
-    return { _circular: '[REDACTED]' };
-  }
+  const seen = new WeakSet<object>();
+  const state = { entries: 0 };
 
-  seen.add(data);
+  const visit = (value: Record<string, unknown>, depth: number): Record<string, unknown> => {
+    if (seen.has(value)) {
+      return { _circular: '[REDACTED]' };
+    }
+    if (depth >= 8 || state.entries >= 500) {
+      return { _truncated: '[LIMIT_REACHED]' };
+    }
 
-  const sanitized: Record<string, unknown> = {};
+    seen.add(value);
+    const sanitized: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(data)) {
+    for (const [key, nestedValue] of Object.entries(value)) {
+      state.entries++;
+      if (state.entries > 500) {
+        sanitized._truncated = '[ENTRY_LIMIT_REACHED]';
+        break;
+      }
     const isKeySensitive = sensitivePatterns.some((pattern) => pattern.test(key));
 
     if (isKeySensitive) {
@@ -365,21 +383,29 @@ export function sanitizeData(
       continue;
     }
 
-    if (typeof value === 'string') {
-      sanitized[key] = detectSensitiveData(value, sensitivePatterns)
+      if (typeof nestedValue === 'string') {
+        const limitedValue = nestedValue.length > 4096
+          ? `${nestedValue.slice(0, 4096)}...[truncated]`
+          : nestedValue;
+        sanitized[key] = detectSensitiveData(limitedValue, sensitivePatterns)
         ? '[REDACTED]'
-        : value;
+          : limitedValue;
       continue;
     }
 
-    if (Array.isArray(value)) {
-      sanitized[key] = value.map((item) => {
+      if (Array.isArray(nestedValue)) {
+        sanitized[key] = nestedValue.slice(0, 100).map((item) => {
         if (typeof item === 'string') {
-          return detectSensitiveData(item, sensitivePatterns) ? '[REDACTED]' : item;
+            const limitedItem = item.length > 4096
+              ? `${item.slice(0, 4096)}...[truncated]`
+              : item;
+            return detectSensitiveData(limitedItem, sensitivePatterns)
+              ? '[REDACTED]'
+              : limitedItem;
         }
 
         if (item && typeof item === 'object') {
-          return sanitizeData(item as Record<string, unknown>, sensitivePatterns, seen);
+            return visit(item as Record<string, unknown>, depth + 1);
         }
 
         return item;
@@ -387,15 +413,18 @@ export function sanitizeData(
       continue;
     }
 
-    if (value && typeof value === 'object') {
-      sanitized[key] = sanitizeData(value as Record<string, unknown>, sensitivePatterns, seen);
+      if (nestedValue && typeof nestedValue === 'object') {
+        sanitized[key] = visit(nestedValue as Record<string, unknown>, depth + 1);
       continue;
     }
 
-    sanitized[key] = value;
-  }
+      sanitized[key] = nestedValue;
+    }
 
-  return sanitized;
+    return sanitized;
+  };
+
+  return visit(data, 0);
 }
 
 /**
@@ -542,16 +571,16 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
       url: env.LOGS_URL ?? '',
       tenantId: env.LOGS_TENANT ?? '',
       authToken: env.LOGS_TOKEN,
-      timeout: parseIntRange(env.LOGS_TIMEOUT, 10_000, 0, 600_000),
-      maxRetries: parseIntRange(env.LOGS_MAX_RETRIES, 3, 0, 20),
+      timeout: parseIntRange(env.LOGS_TIMEOUT, 5_000, 0, 600_000),
+      maxRetries: parseIntRange(env.LOGS_MAX_RETRIES, 1, 0, 20),
       retryDelay: parseIntRange(env.LOGS_RETRY_DELAY, 1_000, 0, 120_000),
       compression,
       compressionLevel: parseIntRange(env.LOGS_COMPRESSION_LEVEL, 6, 0, 11),
       compressionThreshold: parseIntRange(env.LOGS_COMPRESSION_THRESHOLD, 1024, 0, Number.MAX_SAFE_INTEGER),
-      useWorkers: parseBool(env.LOGS_USE_WORKERS, true),
+      useWorkers: parseBool(env.LOGS_USE_WORKERS, false),
       maxWorkers: parseIntRange(env.LOGS_MAX_WORKERS, 2, 1, 64),
       enableConnectionPooling: parseBool(env.LOGS_CONNECTION_POOLING, true),
-      maxSockets: parseIntRange(env.LOGS_MAX_SOCKETS, 50, 1, 1024),
+      maxSockets: parseIntRange(env.LOGS_MAX_SOCKETS, 10, 1, 1024),
       workerTimeout: parseIntRange(env.LOGS_WORKER_TIMEOUT, 30_000, 1_000, 300_000),
     },
     appName: env.LOGS_APP_NAME ?? '',
@@ -561,7 +590,7 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
     buffer: {
       maxSize: parseIntRange(env.LOGS_BUFFER_MAX_SIZE, 100, 1, 1_000_000),
       flushInterval: parseIntRange(env.LOGS_BUFFER_FLUSH_INTERVAL, 5_000, 1, 300_000),
-      maxMemoryMB: parseIntRange(env.LOGS_BUFFER_MAX_MEMORY_MB, 50, 1, 32_768),
+      maxMemoryMB: parseIntRange(env.LOGS_BUFFER_MAX_MEMORY_MB, 32, 1, 32_768),
       maxAge: parseIntRange(env.LOGS_BUFFER_MAX_AGE, 30_000, 100, 86_400_000),
       autoFlush: parseBool(env.LOGS_BUFFER_AUTO_FLUSH, true),
     },
@@ -570,6 +599,7 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
       samplingRate: parseFloatRange(env.LOGS_FILTER_SAMPLING_RATE, 1.0, 0, 1),
       sanitize: parseBool(env.LOGS_FILTER_SANITIZE, true),
       maxMessageLength: parseIntRange(env.LOGS_FILTER_MAX_MESSAGE_LENGTH, 8192, 64, 1_000_000),
+      maxContextBytes: parseIntRange(env.LOGS_FILTER_MAX_CONTEXT_BYTES, 16_384, 256, 1_048_576),
     },
     circuitBreaker: {
       enabled: parseBool(env.LOGS_CIRCUIT_BREAKER_ENABLED, true),
@@ -585,8 +615,9 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
       basePath: env.LOGS_DLQ_BASE_PATH ?? './.logs-dlq',
     },
     performance: {
-      useWorkers: parseBool(env.LOGS_USE_WORKERS, true),
-      maxConcurrentFlushes: parseIntRange(env.LOGS_MAX_CONCURRENT_FLUSHES, 3, 1, 256),
+      useWorkers: parseBool(env.LOGS_USE_WORKERS, false),
+      maxConcurrentFlushes: parseIntRange(env.LOGS_MAX_CONCURRENT_FLUSHES, 2, 1, 256),
+      maxPendingBatches: parseIntRange(env.LOGS_MAX_PENDING_BATCHES, 2, 1, 1024),
       maxWorkers: parseIntRange(env.LOGS_MAX_WORKERS, 2, 1, 64),
       compressionLevel: parseIntRange(env.LOGS_COMPRESSION_LEVEL, 6, 0, 11),
       workerTimeout: parseIntRange(env.LOGS_WORKER_TIMEOUT, 30_000, 1_000, 300_000),

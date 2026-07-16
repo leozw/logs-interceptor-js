@@ -96,6 +96,7 @@ export class LogsInterceptorFactory {
         dynamicLabels,
         enableMetrics: config.enableMetrics,
         maxConcurrentFlushes: config.performance.maxConcurrentFlushes,
+        maxPendingBatches: config.performance.maxPendingBatches,
       }
     );
 
@@ -119,4 +120,3 @@ export class LogsInterceptorFactory {
     return { logger, consoleInterceptor };
   }
 }
-

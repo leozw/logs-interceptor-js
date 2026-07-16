@@ -4,13 +4,19 @@
 import { ILogFilter } from '../../domain/interfaces/ILogFilter';
 import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { LogEntry } from '../../domain/entities/LogEntry';
-import { sanitizeData, detectSensitiveData, shouldSample } from '../../utils';
+import {
+  detectSensitiveData,
+  safeStringify,
+  sanitizeData,
+  shouldSample,
+} from '../../utils';
 
 export interface LogFilterConfig {
   readonly levels: LogLevel[];
   readonly patterns: RegExp[];
   readonly samplingRate: number;
   readonly maxMessageLength: number;
+  readonly maxContextBytes: number;
   readonly sanitize: boolean;
   readonly sensitivePatterns: RegExp[];
 }
@@ -55,6 +61,20 @@ export class LogFilter implements ILogFilter {
     let context = entry.context;
     if (this.config.sanitize && context) {
       context = sanitizeData(context, this.config.sensitivePatterns);
+    }
+
+    if (context) {
+      const serialized = safeStringify(context, 8);
+      if (Buffer.byteLength(serialized, 'utf8') > this.config.maxContextBytes) {
+        const preview = Buffer.from(serialized, 'utf8')
+          .subarray(0, this.config.maxContextBytes)
+          .toString('utf8');
+        context = {
+          _truncated: true,
+          _reason: 'context_size_limit',
+          preview,
+        };
+      }
     }
 
     if (

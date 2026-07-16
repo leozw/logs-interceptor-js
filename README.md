@@ -1,17 +1,17 @@
-# Logs Interceptor (V3)
+# Elven Logs Interceptor
 
 High-performance log interceptor for Node.js with Loki transport, batching, compression, circuit breaker, and DLQ.
 
 ## Installation
 
 ```bash
-npm install logs-interceptor
+npm install elven-logs-interceptor
 ```
 
 ## Quick Start
 
 ```ts
-import { init, logger } from 'logs-interceptor';
+import { init, logger } from 'elven-logs-interceptor';
 
 init({
   appName: 'billing-service',
@@ -72,6 +72,7 @@ This version uses `LOGS_*` variables.
 - `LOGS_FILTER_SAMPLING_RATE`
 - `LOGS_FILTER_SANITIZE`
 - `LOGS_FILTER_MAX_MESSAGE_LENGTH`
+- `LOGS_FILTER_MAX_CONTEXT_BYTES`
 
 ### Circuit Breaker
 
@@ -91,6 +92,7 @@ This version uses `LOGS_*` variables.
 ### Runtime / Features
 
 - `LOGS_MAX_CONCURRENT_FLUSHES`
+- `LOGS_MAX_PENDING_BATCHES`
 - `LOGS_INTERCEPT_CONSOLE`
 - `LOGS_PRESERVE_ORIGINAL_CONSOLE`
 - `LOGS_ENABLE_METRICS`
@@ -119,7 +121,7 @@ No automatic init by default on import.
 ## Preload (Zero-Code)
 
 ```bash
-NODE_OPTIONS="--require logs-interceptor/preload" node app.js
+NODE_OPTIONS="--require elven-logs-interceptor/preload" node app.js
 ```
 
 ## Context Propagation
@@ -140,7 +142,7 @@ await logger.withContextAsync({ requestId: 'req-456' }, async () => {
 
 ```ts
 import winston from 'winston';
-import { WinstonTransport, getLogger } from 'logs-interceptor';
+import { WinstonTransport, getLogger } from 'elven-logs-interceptor';
 
 const interceptor = getLogger();
 
@@ -153,7 +155,7 @@ const winstonLogger = winston.createLogger({
 
 ```ts
 import morgan from 'morgan';
-import { MorganAdapter, getLogger } from 'logs-interceptor';
+import { MorganAdapter, getLogger } from 'elven-logs-interceptor';
 
 const interceptor = getLogger();
 app.use(morgan('combined', { stream: MorganAdapter.createStream(interceptor) }));
@@ -167,6 +169,8 @@ app.use(MorganAdapter.create('combined', interceptor));
 - Retry for transient failures (`429`, `5xx`, timeouts/network errors)
 - Circuit breaker with bounded half-open probes
 - DLQ with bounded size and `drop-oldest` policy
+- Bounded pending flush queue with `drop-oldest` backpressure
+- Bounded serialized context and worker task queues
 - Non-blocking behavior for application code paths
 
 ## License

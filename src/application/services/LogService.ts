@@ -17,6 +17,7 @@ import {
 import { ILogTransport } from '../../domain/interfaces/ILogTransport';
 import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { MetricsCollector } from '../../infrastructure/metrics/MetricsCollector';
+import { internalWarn } from '../../utils';
 
 interface FlushTask {
   entries: LogEntryEntity[];
@@ -39,12 +40,15 @@ export class LogService implements ILogger {
     circuitBreakerTrips: number;
     droppedByBackpressure: number;
     droppedByDlq: number;
+    pendingFlushBatches: number;
+    inFlightFlushes: number;
   };
   private startTime: number;
   private metricsCollector: MetricsCollector;
   private readonly hostname: string;
   private readonly pid: string;
   private readonly maxConcurrentFlushes: number;
+  private readonly maxPendingBatches: number;
 
   private destroyed = false;
   private logSequence = 0;
@@ -54,6 +58,8 @@ export class LogService implements ILogger {
   private readonly flushQueue: FlushTask[] = [];
   private inFlightFlushes = 0;
   private idleResolvers: Array<() => void> = [];
+  private queueDroppedEntries = 0;
+  private lastFlushWarningAt = 0;
 
   constructor(
     private readonly filter: ILogFilter,
@@ -68,12 +74,14 @@ export class LogService implements ILogger {
       dynamicLabels: Record<string, () => string | number>;
       enableMetrics: boolean;
       maxConcurrentFlushes: number;
+      maxPendingBatches: number;
     }
   ) {
     this.startTime = Date.now();
     this.hostname = os.hostname();
     this.pid = String(process.pid);
     this.maxConcurrentFlushes = Math.max(1, config.maxConcurrentFlushes);
+    this.maxPendingBatches = Math.max(1, config.maxPendingBatches);
     this.metrics = this.initializeMetrics();
     this.metricsCollector = new MetricsCollector();
 
@@ -82,7 +90,13 @@ export class LogService implements ILogger {
       typeof (buffer as any).setFlushCallback === 'function'
     ) {
       (buffer as any).setFlushCallback(() => {
-        void this.flush();
+        void this.flush().catch((error) => {
+          const now = Date.now();
+          if (now - this.lastFlushWarningAt >= 10_000) {
+            this.lastFlushWarningAt = now;
+            internalWarn('Background log flush failed', error);
+          }
+        });
       });
     }
   }
@@ -102,6 +116,8 @@ export class LogService implements ILogger {
       circuitBreakerTrips: 0,
       droppedByBackpressure: 0,
       droppedByDlq: 0,
+      pendingFlushBatches: 0,
+      inFlightFlushes: 0,
     };
   }
 
@@ -248,7 +264,17 @@ export class LogService implements ILogger {
 
   private enqueueFlush(entries: LogEntryEntity[]): Promise<void> {
     return new Promise((resolve, reject) => {
+      if (this.flushQueue.length >= this.maxPendingBatches) {
+        const droppedTask = this.flushQueue.shift();
+        if (droppedTask) {
+          this.queueDroppedEntries += droppedTask.entries.length;
+          this.metrics.logsDropped += droppedTask.entries.length;
+          droppedTask.resolve();
+        }
+      }
+
       this.flushQueue.push({ entries, resolve, reject });
+      this.metrics.pendingFlushBatches = this.flushQueue.length;
       this.processFlushQueue();
     });
   }
@@ -264,6 +290,8 @@ export class LogService implements ILogger {
       }
 
       this.inFlightFlushes++;
+      this.metrics.inFlightFlushes = this.inFlightFlushes;
+      this.metrics.pendingFlushBatches = this.flushQueue.length;
 
       void this.sendFlushBatch(task)
         .catch((error) => {
@@ -271,7 +299,9 @@ export class LogService implements ILogger {
         })
         .finally(() => {
           this.inFlightFlushes = Math.max(0, this.inFlightFlushes - 1);
+          this.metrics.inFlightFlushes = this.inFlightFlushes;
           this.processFlushQueue();
+          this.metrics.pendingFlushBatches = this.flushQueue.length;
           this.notifyIfQueueIdle();
         });
     }
@@ -417,6 +447,9 @@ export class LogService implements ILogger {
     const bufferMetrics = this.buffer.getMetrics();
     this.metrics.bufferSize = bufferMetrics.size;
     this.metrics.droppedByBackpressure = bufferMetrics.droppedEntries;
+    this.metrics.droppedByBackpressure += this.queueDroppedEntries;
+    this.metrics.pendingFlushBatches = this.flushQueue.length;
+    this.metrics.inFlightFlushes = this.inFlightFlushes;
 
     const transportMetrics = this.transport.getMetrics?.();
     this.metrics.droppedByDlq = transportMetrics?.dlqDroppedEntries || 0;

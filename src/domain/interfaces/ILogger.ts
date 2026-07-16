@@ -37,6 +37,8 @@ export interface LoggerMetrics {
   readonly circuitBreakerTrips: number;
   readonly droppedByBackpressure: number;
   readonly droppedByDlq: number;
+  readonly pendingFlushBatches: number;
+  readonly inFlightFlushes: number;
   readonly latency?: {
     readonly p50: number;
     readonly p95: number;

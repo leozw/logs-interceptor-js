@@ -19,6 +19,7 @@ export class MemoryBuffer implements ILogBuffer {
   private entries: LogEntry[] = [];
   private lastFlushTime: number = Date.now();
   private flushTimer: NodeJS.Timeout | null = null;
+  private immediateFlush: NodeJS.Immediate | null = null;
   private memoryTracker: MemoryTracker;
   private flushCallback?: () => void;
   private droppedEntries = 0;
@@ -86,7 +87,7 @@ export class MemoryBuffer implements ILogBuffer {
   }
 
   private triggerImmediateFlush(): void {
-    if (this.destroyed) {
+    if (this.destroyed || this.immediateFlush) {
       return;
     }
 
@@ -95,7 +96,8 @@ export class MemoryBuffer implements ILogBuffer {
       this.flushTimer = null;
     }
 
-    setImmediate(() => {
+    this.immediateFlush = setImmediate(() => {
+      this.immediateFlush = null;
       if (this.destroyed) {
         return;
       }
@@ -161,6 +163,10 @@ export class MemoryBuffer implements ILogBuffer {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
+    if (this.immediateFlush) {
+      clearImmediate(this.immediateFlush);
+      this.immediateFlush = null;
+    }
 
     this.clear();
     this.memoryTracker.reset();
@@ -206,7 +212,10 @@ export class MemoryBuffer implements ILogBuffer {
       this.droppedEntries += removed.length;
     }
 
-    if (this.memoryTracker.getTotalSizeMB() > this.config.maxMemoryMB) {
+    while (
+      this.entries.length > 0 &&
+      this.memoryTracker.getTotalSizeMB() > this.config.maxMemoryMB
+    ) {
       const removeCount = Math.max(1, Math.floor(this.entries.length * 0.1));
       this.dropOldest(removeCount);
     }

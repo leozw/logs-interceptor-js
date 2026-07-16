@@ -18,6 +18,7 @@ interface Task<T = any> {
 
 export interface WorkerPoolConfig {
   readonly maxWorkers?: number;
+  readonly maxQueueSize?: number;
   readonly taskTimeout?: number; // milliseconds
   readonly workerScript?: string;
 }
@@ -36,6 +37,7 @@ export class WorkerPool {
   private queue: Task[] = [];
   private readonly maxWorkers: number;
   private readonly taskTimeout: number;
+  private readonly maxQueueSize: number;
   private readonly workerScript: string;
   private totalTasks = 0;
   private completedTasks = 0;
@@ -44,8 +46,9 @@ export class WorkerPool {
 
   constructor(config: WorkerPoolConfig = {}) {
     const cpuCount = require('os').cpus().length;
-    const defaultWorkers = Math.max(1, Math.floor(cpuCount / 2));
+    const defaultWorkers = Math.max(1, Math.min(2, Math.floor(cpuCount / 2)));
     this.maxWorkers = Math.max(1, config.maxWorkers ?? defaultWorkers);
+    this.maxQueueSize = Math.max(1, config.maxQueueSize ?? this.maxWorkers * 4);
     this.taskTimeout = config.taskTimeout ?? 30000; // 30s default
     const extension = __filename.endsWith('.ts') ? 'ts' : 'js';
     this.workerScript = config.workerScript || join(__dirname, `log-processor.worker.${extension}`);
@@ -121,6 +124,11 @@ export class WorkerPool {
       if (this.availableWorkers.length > 0) {
         this.processTask(task);
       } else {
+        if (this.queue.length >= this.maxQueueSize) {
+          this.failedTasks++;
+          reject(new Error(`Worker queue limit reached (${this.maxQueueSize})`));
+          return;
+        }
         this.queue.push(task);
       }
     });
@@ -135,6 +143,7 @@ export class WorkerPool {
       this.replaceWorker(worker);
       this.failedTasks++;
       task.reject(new Error(`Worker task timeout after ${this.taskTimeout}ms`));
+      this.drainQueue();
     }, this.taskTimeout);
 
     const messageHandler = (response: any) => {
@@ -152,10 +161,7 @@ export class WorkerPool {
         }
 
         // Process next task from queue
-        if (this.queue.length > 0) {
-          const nextTask = this.queue.shift()!;
-          this.processTask(nextTask);
-        }
+        this.drainQueue();
       }
     };
 
@@ -167,6 +173,15 @@ export class WorkerPool {
       id: task.id,
       options: task.options,
     });
+  }
+
+  private drainQueue(): void {
+    while (this.availableWorkers.length > 0 && this.queue.length > 0) {
+      const nextTask = this.queue.shift();
+      if (nextTask) {
+        this.processTask(nextTask);
+      }
+    }
   }
 
   getMetrics(): WorkerMetrics {

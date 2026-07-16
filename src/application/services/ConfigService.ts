@@ -119,6 +119,20 @@ export class ConfigService {
     }
 
     if (
+      config.performance?.maxPendingBatches !== undefined &&
+      config.performance.maxPendingBatches <= 0
+    ) {
+      errors.push('Max pending batches must be greater than 0');
+    }
+
+    if (
+      config.filter?.maxContextBytes !== undefined &&
+      config.filter.maxContextBytes <= 0
+    ) {
+      errors.push('Max context bytes must be greater than 0');
+    }
+
+    if (
       config.transport?.compressionLevel !== undefined &&
       config.transport.compressionLevel < 0
     ) {
@@ -176,18 +190,18 @@ export class ConfigService {
       url: transport?.url ?? '',
       tenantId: transport?.tenantId ?? '',
       authToken: transport?.authToken ?? '',
-      timeout: transport?.timeout ?? 10_000,
-      maxRetries: transport?.maxRetries ?? 3,
+      timeout: transport?.timeout ?? 5_000,
+      maxRetries: transport?.maxRetries ?? 1,
       retryDelay: transport?.retryDelay ?? 1_000,
       compression,
       compressionLevel:
         transport?.compressionLevel ?? performance?.compressionLevel ?? 6,
       compressionThreshold: transport?.compressionThreshold ?? 1024,
-      useWorkers: transport?.useWorkers ?? performance?.useWorkers ?? true,
+      useWorkers: transport?.useWorkers ?? performance?.useWorkers ?? false,
       maxWorkers: transport?.maxWorkers ?? performance?.maxWorkers,
       workerTimeout: transport?.workerTimeout ?? performance?.workerTimeout ?? 30_000,
       enableConnectionPooling: transport?.enableConnectionPooling ?? true,
-      maxSockets: transport?.maxSockets ?? 50,
+      maxSockets: transport?.maxSockets ?? 10,
     };
   }
 
@@ -197,7 +211,7 @@ export class ConfigService {
       flushInterval: buffer?.flushInterval ?? 5_000,
       maxAge: buffer?.maxAge ?? 30_000,
       autoFlush: buffer?.autoFlush ?? true,
-      maxMemoryMB: buffer?.maxMemoryMB ?? 50,
+      maxMemoryMB: buffer?.maxMemoryMB ?? 32,
     };
   }
 
@@ -209,6 +223,7 @@ export class ConfigService {
       patterns: filter?.patterns ?? [],
       samplingRate: filter?.samplingRate ?? 1.0,
       maxMessageLength: filter?.maxMessageLength ?? 8192,
+      maxContextBytes: filter?.maxContextBytes ?? 16_384,
       sanitize: filter?.sanitize ?? true,
       sensitivePatterns:
         filter?.sensitivePatterns ??
@@ -240,8 +255,9 @@ export class ConfigService {
     performance?: PerformanceConfig
   ): Required<Omit<PerformanceConfig, 'maxWorkers'>> & { maxWorkers?: number } {
     return {
-      useWorkers: performance?.useWorkers ?? true,
-      maxConcurrentFlushes: performance?.maxConcurrentFlushes ?? 3,
+      useWorkers: performance?.useWorkers ?? false,
+      maxConcurrentFlushes: performance?.maxConcurrentFlushes ?? 2,
+      maxPendingBatches: performance?.maxPendingBatches ?? 2,
       compressionLevel: performance?.compressionLevel ?? 6,
       maxWorkers: performance?.maxWorkers,
       workerTimeout: performance?.workerTimeout ?? 30_000,

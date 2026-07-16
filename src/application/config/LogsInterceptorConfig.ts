@@ -34,6 +34,7 @@ export interface FilterConfig {
   readonly patterns?: RegExp[];
   readonly samplingRate?: number;
   readonly maxMessageLength?: number;
+  readonly maxContextBytes?: number;
   readonly sanitize?: boolean;
   readonly sensitivePatterns?: RegExp[];
 }
@@ -77,6 +78,7 @@ export interface NodeRedIntegrationConfig {
 export interface PerformanceConfig {
   readonly useWorkers?: boolean;
   readonly maxConcurrentFlushes?: number;
+  readonly maxPendingBatches?: number;
   readonly compressionLevel?: number;
   readonly maxWorkers?: number;
   readonly workerTimeout?: number;
@@ -135,5 +137,4 @@ export interface ResolvedLogsInterceptorConfig {
   readonly debug: boolean;
   readonly silentErrors: boolean;
 }
-
 
