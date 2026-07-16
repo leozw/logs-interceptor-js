@@ -9,6 +9,7 @@ const internalConsole = {
 };
 
 export interface EnvironmentConfig {
+  LOGS_TRANSPORT?: string;
   LOGS_URL?: string;
   LOGS_TENANT?: string;
   LOGS_TOKEN?: string;
@@ -64,13 +65,21 @@ export interface EnvironmentConfig {
   LOGS_AUTO_INIT?: string;
   LOGS_ENABLED?: string;
 
+  OTEL_LOGS_EXPORTER?: string;
+  OTEL_EXPORTER_OTLP_ENDPOINT?: string;
+  OTEL_EXPORTER_OTLP_HEADERS?: string;
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT?: string;
+  OTEL_EXPORTER_OTLP_LOGS_HEADERS?: string;
+
   [key: string]: string | undefined;
 }
 
 export interface TransportOptions {
+  type?: 'loki' | 'otlp';
   url: string;
-  tenantId: string;
+  tenantId?: string;
   authToken?: string;
+  headers?: Record<string, string>;
   timeout?: number;
   maxRetries?: number;
   retryDelay?: number;
@@ -565,12 +574,23 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
       : 'gzip';
 
   const dlqType = env.LOGS_DLQ_TYPE === 'file' ? 'file' : 'memory';
+  const transportType = resolveTransportType(env);
+  const transportUrl = transportType === 'otlp'
+    ? env.LOGS_URL ?? env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT ?? env.OTEL_EXPORTER_OTLP_ENDPOINT ?? ''
+    : env.LOGS_URL ?? '';
+  const otlpHeaders = transportType === 'otlp'
+    ? parseOtlpHeaders(
+      env.OTEL_EXPORTER_OTLP_LOGS_HEADERS ?? env.OTEL_EXPORTER_OTLP_HEADERS
+    )
+    : {};
 
   const config: Partial<LogsInterceptorConfig> = {
     transport: {
-      url: env.LOGS_URL ?? '',
+      type: transportType,
+      url: transportUrl,
       tenantId: env.LOGS_TENANT ?? '',
       authToken: env.LOGS_TOKEN,
+      headers: otlpHeaders,
       timeout: parseIntRange(env.LOGS_TIMEOUT, 5_000, 0, 600_000),
       maxRetries: parseIntRange(env.LOGS_MAX_RETRIES, 1, 0, 20),
       retryDelay: parseIntRange(env.LOGS_RETRY_DELAY, 1_000, 0, 120_000),
@@ -635,6 +655,36 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
   }
 
   return config;
+}
+
+function resolveTransportType(env: EnvironmentConfig): 'loki' | 'otlp' {
+  const configured = env.LOGS_TRANSPORT?.trim().toLowerCase();
+  if (configured === 'otlp') return 'otlp';
+  if (configured === 'loki') return 'loki';
+
+  return env.OTEL_LOGS_EXPORTER?.trim().toLowerCase() === 'otlp' && !env.LOGS_URL
+    ? 'otlp'
+    : 'loki';
+}
+
+function parseOtlpHeaders(value: string | undefined): Record<string, string> {
+  if (!value) return {};
+
+  return value.split(',').reduce<Record<string, string>>((headers, item) => {
+    const separator = item.indexOf('=');
+    if (separator <= 0) return headers;
+
+    const key = item.slice(0, separator).trim();
+    const rawValue = item.slice(separator + 1).trim();
+    if (!key) return headers;
+
+    try {
+      headers[key] = decodeURIComponent(rawValue);
+    } catch {
+      headers[key] = rawValue;
+    }
+    return headers;
+  }, {});
 }
 
 /**

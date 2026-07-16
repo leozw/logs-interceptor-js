@@ -24,6 +24,24 @@ describe('Environment configuration (LOGS_*)', () => {
     expect(config.appName).toBe('app-a');
   });
 
+  it('should use the shared OTLP collector without Loki credentials', () => {
+    process.env.LOGS_TRANSPORT = 'otlp';
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://collector:4318';
+    process.env.LOGS_APP_NAME = 'app-a';
+    delete process.env.LOGS_URL;
+    delete process.env.LOGS_TENANT;
+    delete process.env.LOGS_TOKEN;
+
+    const config = loadConfigFromEnv();
+    const errors = ConfigService.validate(config);
+
+    expect(config.transport?.type).toBe('otlp');
+    expect(config.transport?.url).toBe('http://collector:4318');
+    expect(config.transport?.tenantId).toBe('');
+    expect(config.transport?.authToken).toBeUndefined();
+    expect(errors).toEqual([]);
+  });
+
   it('should preserve explicit zero values', () => {
     process.env.LOGS_URL = 'https://loki.example.com/loki/api/v1/push';
     process.env.LOGS_TENANT = 'tenant-a';

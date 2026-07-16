@@ -100,7 +100,12 @@ function autoInitIfEnabled(): void {
   }
 
   const envConfig = loadConfigFromEnv();
-  if (!envConfig.transport?.url || !envConfig.transport.tenantId || !envConfig.appName) {
+  const requiresTenant = (envConfig.transport?.type ?? 'loki') === 'loki';
+  if (
+    !envConfig.transport?.url ||
+    (requiresTenant && !envConfig.transport.tenantId) ||
+    !envConfig.appName
+  ) {
     internalDebug('Auto-init skipped due to missing required LOGS_* variables');
     return;
   }

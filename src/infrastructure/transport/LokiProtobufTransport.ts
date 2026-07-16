@@ -133,7 +133,7 @@ export class LokiProtobufTransport implements ILogTransport {
       const headers: Record<string, string> = {
         'Content-Type': 'application/x-protobuf',
         'Content-Encoding': 'snappy',
-        'X-Scope-OrgID': this.config.tenantId,
+        'X-Scope-OrgID': this.config.tenantId ?? '',
         'User-Agent': 'logs-interceptor/3.0.0',
         ...this.extraHeaders,
       };

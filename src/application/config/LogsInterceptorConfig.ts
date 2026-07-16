@@ -5,9 +5,11 @@
 import { LogLevel } from '../../domain/value-objects/LogLevel';
 
 export interface TransportConfig {
+  readonly type?: 'loki' | 'otlp';
   readonly url: string;
-  readonly tenantId: string;
+  readonly tenantId?: string;
   readonly authToken?: string;
+  readonly headers?: Record<string, string>;
   readonly timeout?: number;
   readonly maxRetries?: number;
   readonly retryDelay?: number;
@@ -137,4 +139,3 @@ export interface ResolvedLogsInterceptorConfig {
   readonly debug: boolean;
   readonly silentErrors: boolean;
 }
-

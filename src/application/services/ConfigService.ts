@@ -24,7 +24,15 @@ export class ConfigService {
       errors.push('Transport URL is required');
     }
 
-    if (!config.transport?.tenantId) {
+    if (
+      config.transport?.type !== undefined &&
+      config.transport.type !== 'loki' &&
+      config.transport.type !== 'otlp'
+    ) {
+      errors.push('Transport type must be either loki or otlp');
+    }
+
+    if ((config.transport?.type ?? 'loki') === 'loki' && !config.transport?.tenantId) {
       errors.push('Tenant ID is required');
     }
 
@@ -187,9 +195,11 @@ export class ConfigService {
     }
 
     return {
+      type: transport?.type ?? 'loki',
       url: transport?.url ?? '',
       tenantId: transport?.tenantId ?? '',
       authToken: transport?.authToken ?? '',
+      headers: transport?.headers ?? {},
       timeout: transport?.timeout ?? 5_000,
       maxRetries: transport?.maxRetries ?? 1,
       retryDelay: transport?.retryDelay ?? 1_000,

@@ -14,9 +14,9 @@ export * from './interceptors/ConsoleInterceptor';
 export * from './memory';
 export * from './transport/LokiJsonTransport';
 export * from './transport/LokiProtobufTransport';
+export * from './transport/OtlpHttpTransport';
 export * from './transport/ResilientTransport';
 export * from './transport/TransportFactory';
 export * from './workers';
-
 
 

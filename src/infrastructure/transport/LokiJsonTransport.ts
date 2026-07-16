@@ -156,7 +156,7 @@ export class LokiJsonTransport implements ILogTransport {
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'X-Scope-OrgID': this.config.tenantId,
+        'X-Scope-OrgID': this.config.tenantId ?? '',
         'User-Agent': 'logs-interceptor/3.0.0',
         ...this.extraHeaders,
       };

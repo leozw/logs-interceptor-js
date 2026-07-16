@@ -1,6 +1,6 @@
 # Elven Logs Interceptor
 
-High-performance log interceptor for Node.js with Loki transport, batching, compression, circuit breaker, and DLQ.
+High-performance log interceptor for Node.js with Loki and OTLP collector transports, batching, compression, circuit breaker, and bounded queues.
 
 ## Installation
 
@@ -28,11 +28,40 @@ init({
 logger.info('service started', { port: 3000 });
 ```
 
+## OTLP Collector Mode
+
+Send logs to the same collector used by metrics and traces. The collector owns
+tenant routing and backend credentials.
+
+```ts
+init({
+  appName: 'billing-service',
+  interceptConsole: true,
+  transport: {
+    type: 'otlp',
+    url: 'http://otel-collector:4318',
+    compression: 'gzip',
+  },
+});
+```
+
+For zero-code configuration:
+
+```bash
+export LOGS_TRANSPORT=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+export LOGS_APP_NAME=billing-service
+```
+
+The `/v1/logs` path is appended automatically. `LOGS_TENANT` and `LOGS_TOKEN`
+are not required in this mode.
+
 ## Environment Variables (Official)
 
 This version uses `LOGS_*` variables.
 
-### Required
+### Required for direct Loki mode
 
 - `LOGS_URL`
 - `LOGS_TENANT`
@@ -46,6 +75,7 @@ This version uses `LOGS_*` variables.
 
 ### Transport
 
+- `LOGS_TRANSPORT` (`loki|otlp`)
 - `LOGS_COMPRESSION` (`none|gzip|brotli|snappy`)
 - `LOGS_COMPRESSION_LEVEL`
 - `LOGS_COMPRESSION_THRESHOLD`
@@ -57,6 +87,10 @@ This version uses `LOGS_*` variables.
 - `LOGS_TIMEOUT`
 - `LOGS_MAX_RETRIES`
 - `LOGS_RETRY_DELAY`
+
+OTLP mode also honors `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and
+`OTEL_EXPORTER_OTLP_LOGS_HEADERS`.
 
 ### Buffer
 

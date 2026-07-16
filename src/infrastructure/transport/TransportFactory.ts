@@ -8,6 +8,7 @@ import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
 import { ILogTransport } from '../../domain/interfaces/ILogTransport';
 import { internalDebug } from '../../utils';
 import { LokiJsonTransport } from './LokiJsonTransport';
+import { OtlpHttpTransport } from './OtlpHttpTransport';
 import { ResilientTransport } from './ResilientTransport';
 
 export class TransportFactory {
@@ -26,7 +27,10 @@ export class TransportFactory {
 
     let baseTransport: ILogTransport;
 
-    if (config.transport.compression === 'snappy') {
+    if (config.transport.type === 'otlp') {
+      internalDebug('Selected OtlpHttpTransport');
+      baseTransport = new OtlpHttpTransport(config);
+    } else if (config.transport.compression === 'snappy') {
       // Lazy import to avoid loading native snappy bindings when not needed.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { LokiProtobufTransport } = require('./LokiProtobufTransport') as {
