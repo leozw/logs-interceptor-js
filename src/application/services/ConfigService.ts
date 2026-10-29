@@ -3,6 +3,7 @@
  * Handles configuration loading, validation, and resolution
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
+import safeRegex from 'safe-regex2';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -19,6 +20,99 @@ export class ConfigService {
    */
   static validate(config: Partial<LogsInterceptorConfig>): string[] {
     const errors: string[] = [];
+    const ranges: Array<[string, number | undefined, number, number]> = [
+      ['transport.timeout', config.transport?.timeout, 1, 60_000],
+      ['transport.maxRetries', config.transport?.maxRetries, 0, 5],
+      ['transport.retryDelay', config.transport?.retryDelay, 0, 10_000],
+      ['transport.maxWorkers', config.transport?.maxWorkers, 1, 16],
+      ['transport.maxSockets', config.transport?.maxSockets, 1, 128],
+      ['transport.workerTimeout', config.transport?.workerTimeout, 1, 60_000],
+      ['buffer.maxSize', config.buffer?.maxSize, 1, 10_000],
+      ['buffer.maxMemoryMB', config.buffer?.maxMemoryMB, 0.001, 4096],
+      ['buffer.flushInterval', config.buffer?.flushInterval, 1, 3_600_000],
+      ['buffer.maxAge', config.buffer?.maxAge, 1, 3_600_000],
+      [
+        'filter.maxMessageLength',
+        config.filter?.maxMessageLength,
+        1,
+        1_048_576,
+      ],
+      ['filter.maxContextBytes', config.filter?.maxContextBytes, 1, 1_048_576],
+      ['filter.samplingRate', config.filter?.samplingRate, 0, 1],
+      [
+        'performance.maxConcurrentFlushes',
+        config.performance?.maxConcurrentFlushes,
+        1,
+        32,
+      ],
+      [
+        'performance.maxPendingBatches',
+        config.performance?.maxPendingBatches,
+        1,
+        64,
+      ],
+      ['performance.maxWorkers', config.performance?.maxWorkers, 1, 16],
+      [
+        'performance.workerTimeout',
+        config.performance?.workerTimeout,
+        1,
+        60_000,
+      ],
+      ['deadLetterQueue.maxSize', config.deadLetterQueue?.maxSize, 1, 10_000],
+      [
+        'performance.shutdownTimeoutMillis',
+        config.performance?.shutdownTimeoutMillis,
+        1,
+        60_000,
+      ],
+      [
+        'deadLetterQueue.maxFileSizeMB',
+        config.deadLetterQueue?.maxFileSizeMB,
+        0.001,
+        100,
+      ],
+    ];
+    for (const [name, value, min, max] of ranges) {
+      if (
+        value !== undefined &&
+        (!Number.isFinite(value) || value < min || value > max)
+      ) {
+        errors.push(`${name} must be finite and between ${min} and ${max}`);
+      }
+    }
+    for (const [name, labels] of [
+      ['labels', config.labels],
+      ['dynamicLabels', config.dynamicLabels],
+    ] as const) {
+      if (
+        labels &&
+        (Object.keys(labels).length > 32 ||
+          Object.keys(labels).some((key) => key.length > 128))
+      ) {
+        errors.push(
+          `${name} must have at most 32 keys of at most 128 characters`,
+        );
+      }
+    }
+    for (const patterns of [
+      config.filter?.patterns,
+      config.filter?.sensitivePatterns,
+    ]) {
+      if (
+        patterns &&
+        (patterns.length > 32 ||
+          patterns.some(
+            (pattern) =>
+              !(pattern instanceof RegExp) ||
+              pattern.source.length > 256 ||
+              !safeRegex(pattern),
+          ))
+      ) {
+        errors.push(
+          'Filter patterns must contain at most 32 safe regular expressions (256 characters each)',
+        );
+      }
+    }
 
     if (!config.transport?.url) {
       errors.push('Transport URL is required');
@@ -32,7 +126,10 @@ export class ConfigService {
       errors.push('Transport type must be either loki or otlp');
     }
 
-    if ((config.transport?.type ?? 'loki') === 'loki' && !config.transport?.tenantId) {
+    if (
+      (config.transport?.type ?? 'loki') === 'loki' &&
+      !config.transport?.tenantId
+    ) {
       errors.push('Tenant ID is required');
     }
 
@@ -40,15 +137,25 @@ export class ConfigService {
       errors.push('App name is required');
     }
 
-    if (config.transport?.url) {
-      try {
-        // eslint-disable-next-line no-new
-        new URL(config.transport.url);
-      } catch {
-        errors.push('Transport URL must be a valid URL');
+    for (const rawUrl of [config.transport?.url, config.transport?.logsUrl]) {
+      if (rawUrl) {
+        try {
+          // eslint-disable-next-line no-new
+          const url = new URL(rawUrl);
+          if (
+            !['http:', 'https:'].includes(url.protocol) ||
+            url.username ||
+            url.password
+          ) {
+            errors.push(
+              'Transport URL must use HTTP(S) without embedded credentials',
+            );
+          }
+        } catch {
+          errors.push('Transport URL must be a valid URL');
+        }
       }
     }
-
     if (
       config.transport?.timeout !== undefined &&
       config.transport.timeout < 0
@@ -70,10 +177,7 @@ export class ConfigService {
       errors.push('Transport retry delay must be greater than or equal to 0');
     }
 
-    if (
-      config.buffer?.maxSize !== undefined &&
-      config.buffer.maxSize <= 0
-    ) {
+    if (config.buffer?.maxSize !== undefined && config.buffer.maxSize <= 0) {
       errors.push('Buffer max size must be greater than 0');
     }
 
@@ -178,7 +282,7 @@ export class ConfigService {
 
   private static resolveTransport(
     transport?: TransportConfig,
-    performance?: PerformanceConfig
+    performance?: PerformanceConfig,
   ): ResolvedLogsInterceptorConfig['transport'] {
     let compression: 'none' | 'gzip' | 'brotli' | 'snappy' = 'gzip';
     if (transport?.compression === false || transport?.compression === 'none') {
@@ -197,6 +301,7 @@ export class ConfigService {
     return {
       type: transport?.type ?? 'loki',
       url: transport?.url ?? '',
+      logsUrl: transport?.logsUrl ?? '',
       tenantId: transport?.tenantId ?? '',
       authToken: transport?.authToken ?? '',
       headers: transport?.headers ?? {},
@@ -209,7 +314,8 @@ export class ConfigService {
       compressionThreshold: transport?.compressionThreshold ?? 1024,
       useWorkers: transport?.useWorkers ?? performance?.useWorkers ?? false,
       maxWorkers: transport?.maxWorkers ?? performance?.maxWorkers,
-      workerTimeout: transport?.workerTimeout ?? performance?.workerTimeout ?? 30_000,
+      workerTimeout:
+        transport?.workerTimeout ?? performance?.workerTimeout ?? 30_000,
       enableConnectionPooling: transport?.enableConnectionPooling ?? true,
       maxSockets: transport?.maxSockets ?? 10,
     };
@@ -235,23 +341,21 @@ export class ConfigService {
       maxMessageLength: filter?.maxMessageLength ?? 8192,
       maxContextBytes: filter?.maxContextBytes ?? 16_384,
       sanitize: filter?.sanitize ?? true,
-      sensitivePatterns:
-        filter?.sensitivePatterns ??
-        [
-          /password/i,
-          /token/i,
-          /secret/i,
-          /api[_-]?key/i,
-          /authorization/i,
-          /credit[_-]?card/i,
-          /ssn/i,
-          /cpf/i,
-        ],
+      sensitivePatterns: filter?.sensitivePatterns ?? [
+        /password/i,
+        /token/i,
+        /secret/i,
+        /api[_-]?key/i,
+        /authorization/i,
+        /credit[_-]?card/i,
+        /ssn/i,
+        /cpf/i,
+      ],
     };
   }
 
   private static resolveCircuitBreaker(
-    circuitBreaker?: CircuitBreakerConfig
+    circuitBreaker?: CircuitBreakerConfig,
   ): Required<CircuitBreakerConfig> {
     return {
       enabled: circuitBreaker?.enabled ?? true,
@@ -262,7 +366,7 @@ export class ConfigService {
   }
 
   private static resolvePerformance(
-    performance?: PerformanceConfig
+    performance?: PerformanceConfig,
   ): Required<Omit<PerformanceConfig, 'maxWorkers'>> & { maxWorkers?: number } {
     return {
       useWorkers: performance?.useWorkers ?? false,
@@ -271,6 +375,7 @@ export class ConfigService {
       compressionLevel: performance?.compressionLevel ?? 6,
       maxWorkers: performance?.maxWorkers,
       workerTimeout: performance?.workerTimeout ?? 30_000,
+      shutdownTimeoutMillis: performance?.shutdownTimeoutMillis ?? 10_000,
     };
   }
 }

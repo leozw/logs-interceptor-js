@@ -5,6 +5,7 @@
 
 (function () {
   'use strict';
+  if (!require('node:worker_threads').isMainThread) return;
 
   if (global.__LOGS_INTERCEPTOR_PRELOADED) {
     return;
@@ -45,23 +46,33 @@
 
     const gracefulShutdown = async (signal) => {
       debugLog(`Graceful shutdown triggered by ${signal}`);
+      let timer;
 
       try {
         if (typeof logsInterceptor.destroy === 'function') {
-          await logsInterceptor.destroy();
+          await Promise.race([
+            logsInterceptor.destroy(),
+            new Promise((_, reject) => {
+              timer = setTimeout(() => reject(new Error('Telemetry shutdown deadline exceeded')), 10000);
+            }),
+          ]);
         }
       } catch (error) {
         errorLog('Graceful shutdown failed:', error && error.message ? error.message : error);
+      } finally {
+        clearTimeout(timer);
+        process.off('SIGTERM', onTerm);
+        process.off('SIGINT', onInt);
+        if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
       }
     };
 
-    process.on('SIGTERM', () => {
-      void gracefulShutdown('SIGTERM');
-    });
-
-    process.on('SIGINT', () => {
-      void gracefulShutdown('SIGINT');
-    });
+    const onTerm = () => { void gracefulShutdown('SIGTERM'); };
+    const onInt = () => { void gracefulShutdown('SIGINT'); };
+    if (logsInterceptor.isInitialized()) {
+      process.once('SIGTERM', onTerm);
+      process.once('SIGINT', onInt);
+    }
   } catch (error) {
     errorLog('Preload failed:', error && error.message ? error.message : error);
 

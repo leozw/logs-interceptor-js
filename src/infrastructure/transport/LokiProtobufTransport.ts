@@ -15,6 +15,7 @@ import {
 import { internalError, internalWarn } from '../../utils';
 import { WorkerPool } from '../workers';
 import { LOKI_PROTO } from './proto/loki-proto';
+import { consumeResponse } from './consumeResponse';
 
 interface RetryableTransportError extends Error {
   statusCode?: number;
@@ -61,6 +62,8 @@ export class LokiProtobufTransport implements ILogTransport {
         keepAliveMaxTimeout: 600_000,
         headersTimeout: this.timeoutMs,
         bodyTimeout: this.timeoutMs,
+        maxResponseSize: 65_536,
+        connect: { timeout: this.timeoutMs },
       });
     }
 
@@ -145,14 +148,14 @@ export class LokiProtobufTransport implements ILogTransport {
       const response = await this.sendRequest(headers, compressed);
 
       if (response.statusCode >= 300) {
-        const body = await response.body.text();
+        await consumeResponse(response.body);
         throw this.createHttpError(
-          `Loki responded with ${response.statusCode}: ${body}`,
+          `Loki responded with ${response.statusCode}`,
           response.statusCode
         );
       }
 
-      await response.body.text();
+      await consumeResponse(response.body);
 
       const duration = performance.now() - startTime;
       this.recordSuccess(duration);
@@ -172,6 +175,7 @@ export class LokiProtobufTransport implements ILogTransport {
         method: 'POST',
         headers,
         body,
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
     }
 
@@ -179,6 +183,7 @@ export class LokiProtobufTransport implements ILogTransport {
       method: 'POST',
       headers,
       body,
+      signal: AbortSignal.timeout(this.timeoutMs),
       headersTimeout: this.timeoutMs,
       bodyTimeout: this.timeoutMs,
       maxRedirections: 0,
@@ -289,7 +294,7 @@ export class LokiProtobufTransport implements ILogTransport {
     }
 
     if (this.client) {
-      await this.client.close();
+      await this.client.destroy();
     }
   }
 

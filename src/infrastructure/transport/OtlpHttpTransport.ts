@@ -4,6 +4,8 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
 import { CompressionAlgorithm } from '@opentelemetry/otlp-exporter-base';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import type { ReadableLogRecord } from '@opentelemetry/sdk-logs';
+import { boundedAgent } from './BoundedAgent';
+import { applyLabelPolicy } from '../filter/LabelPolicy';
 import { ResolvedLogsInterceptorConfig } from '../../application/config/LogsInterceptorConfig';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import {
@@ -14,11 +16,12 @@ import {
 
 const instrumentationScope = {
   name: 'elven-logs-interceptor',
-  version: '1.1.0',
+  version: '1.1.1',
 };
 
 export class OtlpHttpTransport implements ILogTransport {
   private readonly exporter: OTLPLogExporter;
+  private readonly agents: ReturnType<typeof boundedAgent>;
   private readonly resource: ReturnType<typeof resourceFromAttributes>;
   private health: TransportHealth = {
     healthy: true,
@@ -34,8 +37,9 @@ export class OtlpHttpTransport implements ILogTransport {
 
   constructor(private readonly config: ResolvedLogsInterceptorConfig) {
     const transport = config.transport;
+    this.agents = boundedAgent(transport.timeout, transport.maxSockets, transport.enableConnectionPooling);
     this.exporter = new OTLPLogExporter({
-      url: appendLogsPath(transport.url),
+      url: transport.logsUrl || appendLogsPath(transport.url),
       headers: transport.headers,
       timeoutMillis: transport.timeout,
       concurrencyLimit: Math.max(1, config.performance.maxConcurrentFlushes),
@@ -43,18 +47,14 @@ export class OtlpHttpTransport implements ILogTransport {
         ? CompressionAlgorithm.GZIP
         : CompressionAlgorithm.NONE,
       keepAlive: transport.enableConnectionPooling,
-      httpAgentOptions: {
-        keepAlive: transport.enableConnectionPooling,
-        maxSockets: transport.maxSockets,
-      },
-      userAgent: 'elven-logs-interceptor/1.1.0',
+      httpAgentOptions: this.agents.factory,
+      userAgent: 'elven-logs-interceptor/1.1.1',
     });
-    this.resource = resourceFromAttributes({
+    this.resource = resourceFromAttributes(applyLabelPolicy(config.labels, config.filter, {
       'service.name': config.appName,
       'service.version': config.version,
       'deployment.environment.name': config.environment,
-      ...config.labels,
-    });
+    }));
   }
 
   async send(entries: LogEntry[]): Promise<void> {
@@ -112,6 +112,7 @@ export class OtlpHttpTransport implements ILogTransport {
   }
 
   async destroy(): Promise<void> {
+    this.agents.destroy();
     await this.exporter.shutdown();
   }
 

@@ -3,7 +3,7 @@
  * Persists failed log entries to disk for later retry
  */
 import { existsSync, mkdirSync } from 'fs';
-import { readFile, unlink, writeFile } from 'fs/promises';
+import { readFile, stat, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import {
@@ -35,13 +35,14 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
   private readonly maxRetries: number;
   private droppedEntries = 0;
   private writeChain: Promise<void> = Promise.resolve();
+  private ready: Promise<number>;
 
   constructor(config: FileDLQConfig = {}) {
     const basePath = config.basePath || process.cwd();
     const dlqDir = join(basePath, '.logs-interceptor-dlq');
 
     if (!existsSync(dlqDir)) {
-      mkdirSync(dlqDir, { recursive: true });
+      mkdirSync(dlqDir, { recursive: true, mode: 0o700 });
     }
 
     this.filePath = join(dlqDir, 'dlq-current.jsonl');
@@ -49,7 +50,7 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
     this.maxFileSizeMB = config.maxFileSizeMB ?? 10;
     this.maxRetries = config.maxRetries ?? 3;
 
-    void this.loadFromDisk();
+    this.ready = this.loadFromDisk();
   }
 
   async add(entry: LogEntry, reason: string): Promise<DLQAddResult> {
@@ -57,6 +58,7 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
   }
 
   async addBatch(entries: LogEntry[], reason: string): Promise<DLQAddResult> {
+    await this.ready;
     if (entries.length === 0) {
       return { added: 0, dropped: 0 };
     }
@@ -136,6 +138,10 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
         return 0;
       }
 
+      if ((await stat(this.filePath)).size > this.maxFileSizeMB * 1024 * 1024) {
+        internalWarn('[FileDLQ] Recovery file exceeds size budget; left untouched');
+        return 0;
+      }
       const content = await readFile(this.filePath, 'utf8');
       const lines = content
         .split('\n')
@@ -174,13 +180,13 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
     const maxBytes = this.maxFileSizeMB * 1024 * 1024;
     if (Buffer.byteLength(content, 'utf8') > maxBytes && this.queue.length > 0) {
       // Keep the newest half when file budget is exceeded.
-      const half = Math.max(1, Math.floor(this.queue.length / 2));
+      const half = Math.floor(this.queue.length / 2);
       const dropped = this.queue.length - half;
-      this.queue = this.queue.slice(-half);
+      this.queue = half > 0 ? this.queue.slice(-half) : [];
       this.droppedEntries += dropped;
       return this.persistQueueToDisk();
     }
 
-    await writeFile(this.filePath, content, 'utf8');
+    await writeFile(this.filePath, content, { encoding: 'utf8', mode: 0o600 });
   }
 }

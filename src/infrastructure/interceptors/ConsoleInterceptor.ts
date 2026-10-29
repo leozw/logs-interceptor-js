@@ -5,9 +5,14 @@ import { ILogger } from '../../domain/interfaces/ILogger';
 import { ILogInterceptor } from '../../domain/interfaces/ILogInterceptor';
 import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { safeStringify } from '../../utils';
+import { context } from '@opentelemetry/api';
+import { isTracingSuppressed } from '@opentelemetry/core';
+import { logExportSuppression } from '../transport/ExportSuppression';
 
 export class ConsoleInterceptor implements ILogInterceptor {
   private enabled = false;
+  private processing = false;
+  private wrappers: Partial<Record<'log' | 'info' | 'warn' | 'error' | 'debug', (...args: unknown[]) => void>> = {};
   private originalConsole: {
     log: typeof console.log;
     info: typeof console.info;
@@ -21,11 +26,11 @@ export class ConsoleInterceptor implements ILogInterceptor {
     private readonly preserveOriginal: boolean = true
   ) {
     this.originalConsole = {
-      log: console.log.bind(console),
-      info: console.info.bind(console),
-      warn: console.warn.bind(console),
-      error: console.error.bind(console),
-      debug: console.debug.bind(console),
+      log: console.log,
+      info: console.info,
+      warn: console.warn,
+      error: console.error,
+      debug: console.debug,
     };
   }
 
@@ -70,23 +75,35 @@ export class ConsoleInterceptor implements ILogInterceptor {
     };
 
     (['log', 'info', 'warn', 'error', 'debug'] as const).forEach((method) => {
-      const original = this.originalConsole[method];
+      const original = this.originalConsole[method].bind(console);
       const level = methodMap[method] as LogLevel;
 
-      console[method] = (...args: unknown[]): void => {
+      const wrapper = (...args: unknown[]): void => {
+        if (!this.enabled) { original(...args); return; }
+        if (logExportSuppression.getStore() || isTracingSuppressed(context.active())) {
+          if (this.preserveOriginal) original(...args);
+          return;
+        }
+        if (this.processing) {
+          if (this.preserveOriginal) original(...args);
+          return;
+        }
+        this.processing = true;
         // Always intercept console logs - call logger directly
         // Call logger directly, bypassing intercept() to avoid stack trace issues
         try {
-          const message = args
+          const message = args.slice(0, 32)
             .map((arg) =>
-              typeof arg === 'string' ? arg : safeStringify(arg)
+              typeof arg === 'string' ? arg.slice(0, 8192) : safeStringify(arg, 8, 8192)
             )
-            .join(' ');
+            .join(' ').slice(0, 8192);
           this.logger.log(level, message, { source: 'console' });
         } catch (error) {
           // If logger fails, still call original console
           original(...args);
           return;
+        } finally {
+          this.processing = false;
         }
 
         // Call original console if preserveOriginal is true
@@ -94,6 +111,8 @@ export class ConsoleInterceptor implements ILogInterceptor {
           original(...args);
         }
       };
+      this.wrappers[method] = wrapper;
+      console[method] = wrapper;
     });
   }
 
@@ -111,11 +130,10 @@ export class ConsoleInterceptor implements ILogInterceptor {
   }
 
   restore(): void {
-    console.log = this.originalConsole.log;
-    console.info = this.originalConsole.info;
-    console.warn = this.originalConsole.warn;
-    console.error = this.originalConsole.error;
-    console.debug = this.originalConsole.debug;
+    for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) {
+      if (console[method] === this.wrappers[method]) console[method] = this.originalConsole[method];
+    }
+    this.enabled = false;
   }
 
   private callOriginal(

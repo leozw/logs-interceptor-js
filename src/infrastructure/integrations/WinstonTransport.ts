@@ -18,10 +18,6 @@ export class WinstonTransport extends TransportStream {
   }
 
   log(info: any, callback: () => void): void {
-    setImmediate(() => {
-      this.emit('logged', info);
-    });
-
     const { level, message, ...meta } = info;
 
     // Map Winston levels to our levels
@@ -53,6 +49,9 @@ export class WinstonTransport extends TransportStream {
         this.logger.info(message, context);
     }
 
-    callback();
+    setImmediate(() => {
+      try { this.emit('logged', info); }
+      finally { callback(); }
+    });
   }
 }

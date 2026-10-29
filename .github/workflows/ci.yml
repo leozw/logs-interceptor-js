@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [22.x, 24.x, 26.x]
 
     steps:
       - name: Checkout
@@ -29,6 +29,9 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Release policy regression tests
+        run: node scripts/release-guard.test.cjs
 
       - name: Lint
         run: npm run lint

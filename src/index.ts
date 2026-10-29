@@ -3,6 +3,7 @@
  * Public API for logs-interceptor
  */
 import { ConfigService, LogsInterceptorConfig } from './application';
+import { isMainThread } from 'node:worker_threads';
 import {
   HealthStatus,
   ILogger,
@@ -52,6 +53,11 @@ export function init(userConfig: Partial<LogsInterceptorConfig> = {}): ILogger {
   }
 
   const runtime = LogsInterceptorFactory.create(resolvedConfig);
+  const destroyRuntime = runtime.logger.destroy.bind(runtime.logger);
+  runtime.logger.destroy = async () => {
+    if (globalRuntime === runtime) globalRuntime = null;
+    await destroyRuntime();
+  };
   globalRuntime = runtime;
 
   return runtime.logger;
@@ -95,6 +101,7 @@ export async function destroy(): Promise<void> {
  * Auto-initialize only when explicitly enabled
  */
 function autoInitIfEnabled(): void {
+  if (!isMainThread) return;
   if (!parseBool(process.env.LOGS_AUTO_INIT, false)) {
     return;
   }

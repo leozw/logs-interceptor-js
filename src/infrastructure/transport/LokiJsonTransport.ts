@@ -14,6 +14,7 @@ import { ICompressor } from '../compression';
 import { CompressorFactory } from '../compression/CompressorFactory';
 import { WorkerPool } from '../workers';
 import { internalWarn } from '../../utils';
+import { consumeResponse } from './consumeResponse';
 
 interface LokiStream {
   readonly stream: Record<string, string>;
@@ -88,6 +89,8 @@ export class LokiJsonTransport implements ILogTransport {
         keepAliveMaxTimeout: 600_000,
         headersTimeout: this.timeoutMs,
         bodyTimeout: this.timeoutMs,
+        maxResponseSize: 65_536,
+        connect: { timeout: this.timeoutMs },
       });
     }
   }
@@ -175,14 +178,14 @@ export class LokiJsonTransport implements ILogTransport {
       const response = await this.sendRequest(headers, body);
 
       if (response.statusCode >= 300) {
-        const bodyText = await response.body.text();
+        await consumeResponse(response.body);
         throw this.createHttpError(
-          `Loki responded with ${response.statusCode}: ${bodyText}`,
+          `Loki responded with ${response.statusCode}`,
           response.statusCode
         );
       }
 
-      await response.body.text();
+      await consumeResponse(response.body);
 
       const duration = performance.now() - startTime;
       this.recordSuccess(duration);
@@ -242,6 +245,7 @@ export class LokiJsonTransport implements ILogTransport {
         method: 'POST',
         headers,
         body,
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
     }
 
@@ -249,6 +253,7 @@ export class LokiJsonTransport implements ILogTransport {
       method: 'POST',
       headers,
       body,
+      signal: AbortSignal.timeout(this.timeoutMs),
       headersTimeout: this.timeoutMs,
       bodyTimeout: this.timeoutMs,
       maxRedirections: 0,
@@ -276,7 +281,7 @@ export class LokiJsonTransport implements ILogTransport {
     }
 
     if (this.client) {
-      await this.client.close();
+      await this.client.destroy();
     }
   }
 
