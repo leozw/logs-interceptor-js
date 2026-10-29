@@ -8,12 +8,10 @@ import { Pool } from 'undici';
 import { TransportConfig } from '../../application/config/LogsInterceptorConfig';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import { ILogTransport, TransportHealth, TransportMetrics } from '../../domain/interfaces/ILogTransport';
-import { WorkerPool } from '../workers';
 import { LOKI_PROTO } from './proto/loki-proto';
 
 export class LokiProtobufTransport implements ILogTransport {
   private client: Pool;
-  private workerPool?: WorkerPool;
   private root: protobuf.Root | null = null;
   private PushRequest: protobuf.Type | null = null;
   private health: TransportHealth = {
@@ -46,18 +44,6 @@ export class LokiProtobufTransport implements ILogTransport {
       headersTimeout: config.timeout ?? 5000,
       bodyTimeout: config.timeout ?? 5000,
     });
-
-    // Initialize worker pool if enabled
-    if (this.config.useWorkers !== false) {
-      try {
-        this.workerPool = new WorkerPool({
-          maxWorkers: this.config.maxWorkers,
-        });
-      } catch (error) {
-        console.warn('[LokiProtobufTransport] Failed to initialize worker pool:', error);
-      }
-    }
-
     this.initProtobuf();
   }
 
@@ -80,39 +66,32 @@ export class LokiProtobufTransport implements ILogTransport {
     this.metrics.totalSends++;
 
     try {
-      let compressed: Buffer;
-      let compressedSize: number;
-      let rawSize = 0; // fallback default
-      let compressionTime = 0;
+      // 1. Group by stream (labels)
+      const streams = this.groupEntries(entries);
 
-      if (this.workerPool && entries.length > 50) {
-        // Offload Protobuf Encode + Snappy to Worker
-        try {
-          const startTimeWorker = performance.now();
-          // We need response type any because we added metrics
-          const workerResult = await this.workerPool.execute<Buffer>('encodeProtobufAndCompress', entries);
-          compressed = workerResult as Buffer;
-          compressedSize = compressed.length;
-          compressionTime = performance.now() - startTimeWorker;
-          // Approximate raw size since it's hidden in the worker (unless we change execute signature)
-          // We assume raw size is roughly length * 150 for metric purposes
-          rawSize = entries.length * 150;
-        } catch (error) {
-          console.warn('[LokiProtobufTransport] Worker failed, falling back to main thread', error);
-          const fb = await this.encodeMainThread(entries);
-          compressed = fb.compressed;
-          compressedSize = fb.compressedSize;
-          rawSize = fb.rawSize;
-          compressionTime = fb.compressionTime;
-        }
-      } else {
-        // Run on Main Thread
-        const fb = await this.encodeMainThread(entries);
-        compressed = fb.compressed;
-        compressedSize = fb.compressedSize;
-        rawSize = fb.rawSize;
-        compressionTime = fb.compressionTime;
-      }
+      // 2. Create Protobuf payload
+      const payload = {
+        streams: streams.map(({ labels, entries }) => ({
+          labels: this.formatLabels(labels),
+          entries: entries.map(entry => ({
+            timestamp: this.getProtobufTimestamp(entry.timestamp),
+            line: this.formatLogLine(entry),
+          })),
+        })),
+      };
+
+      // 3. Encode to Protobuf
+      const errMsg = this.PushRequest.verify(payload);
+      if (errMsg) throw new Error(`Protobuf verification failed: ${errMsg}`);
+
+      const buffer = this.PushRequest.encode(payload).finish();
+      const rawSize = buffer.length;
+
+      // 4. Compress with Snappy
+      const compressionStart = performance.now();
+      const compressed = await snappy.compress(Buffer.from(buffer));
+      const compressionTime = performance.now() - compressionStart;
+      const compressedSize = compressed.length;
 
       // Update compression metrics
       this.updateCompressionMetrics(compressionTime, rawSize, compressedSize);
@@ -152,37 +131,6 @@ export class LokiProtobufTransport implements ILogTransport {
       this.recordFailure(error as Error);
       throw error;
     }
-  }
-
-  private async encodeMainThread(entries: LogEntry[]): Promise<{ compressed: Buffer; rawSize: number; compressedSize: number; compressionTime: number }> {
-    // 1. Group by stream (labels)
-    const streams = this.groupEntries(entries);
-
-    // 2. Create Protobuf payload
-    const payload = {
-      streams: streams.map(({ labels, entries }) => ({
-        labels: this.formatLabels(labels),
-        entries: entries.map((entry: LogEntry) => ({
-          timestamp: this.getProtobufTimestamp(entry.timestamp),
-          line: this.formatLogLine(entry),
-        })),
-      })),
-    };
-
-    // 3. Encode to Protobuf
-    const errMsg = this.PushRequest!.verify(payload);
-    if (errMsg) throw new Error(`Protobuf verification failed: ${errMsg}`);
-
-    const buffer = this.PushRequest!.encode(payload).finish();
-    const rawSize = buffer.length;
-
-    // 4. Compress with Snappy
-    const compressionStart = performance.now();
-    const compressed = await snappy.compress(Buffer.from(buffer));
-    const compressionTime = performance.now() - compressionStart;
-    const compressedSize = compressed.length;
-
-    return { compressed, rawSize, compressedSize, compressionTime };
   }
 
   private groupEntries(entries: LogEntry[]): { labels: Record<string, string>; entries: LogEntry[] }[] {
@@ -244,9 +192,6 @@ export class LokiProtobufTransport implements ILogTransport {
   }
 
   async destroy(): Promise<void> {
-    if (this.workerPool) {
-      await this.workerPool.destroy();
-    }
     await this.client.close();
   }
 

@@ -7,7 +7,7 @@ import { Worker } from 'worker_threads';
 
 interface Task<T = any> {
   id: string;
-  type: 'format' | 'compress' | 'process' | 'encodeProtobufAndCompress';
+  type: 'format' | 'compress' | 'process';
   data: any;
   options?: any;
   resolve: (value: T) => void;
@@ -99,7 +99,7 @@ export class WorkerPool {
   }
 
   async execute<T = any>(
-    type: 'format' | 'compress' | 'process' | 'encodeProtobufAndCompress',
+    type: 'format' | 'compress' | 'process',
     data: any,
     options?: any
   ): Promise<T> {

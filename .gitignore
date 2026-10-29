@@ -57,3 +57,4 @@ config/production.json
 logs-interceptor.config.json
 
 yarn.lock
+.rebuild/
