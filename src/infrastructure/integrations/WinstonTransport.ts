@@ -19,7 +19,7 @@ export class WinstonTransport extends TransportStream {
 
   log(info: any, callback: () => void): void {
     setImmediate(() => {
-      this.emit('logged', info);
+      try { this.emit('logged', info); } finally { callback(); }
     });
 
     const { level, message, ...meta } = info;
@@ -53,6 +53,5 @@ export class WinstonTransport extends TransportStream {
         this.logger.info(message, context);
     }
 
-    callback();
   }
 }

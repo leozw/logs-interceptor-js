@@ -21,6 +21,7 @@ export class MemoryBuffer implements ILogBuffer {
   private flushTimer: NodeJS.Timeout | null = null;
   private memoryTracker: MemoryTracker;
   private flushCallback?: () => void;
+  private immediateFlush: NodeJS.Immediate | null = null;
 
   constructor(private readonly config: MemoryBufferConfig) {
     this.memoryTracker = new MemoryTracker();
@@ -40,6 +41,11 @@ export class MemoryBuffer implements ILogBuffer {
   add(entry: LogEntry): void {
     this.entries.push(entry);
     this.memoryTracker.addEntry(entry);
+    const maxSize = Number.isFinite(this.config.maxSize) ? Math.max(1, Math.min(10000, this.config.maxSize)) : 100;
+    const maxMemory = Number.isFinite(this.config.maxMemoryMB) ? Math.max(0.001, Math.min(1024, this.config.maxMemoryMB)) : 50;
+    while (this.entries.length && (this.entries.length > maxSize || this.memoryTracker.getTotalSizeMB() > maxMemory)) {
+      this.memoryTracker.removeEntries([this.entries.shift()!]);
+    }
 
     // Check memory threshold
     const memoryMB = this.memoryTracker.getTotalSizeMB();
@@ -65,6 +71,7 @@ export class MemoryBuffer implements ILogBuffer {
   }
 
   private triggerImmediateFlush(): void {
+    if (this.immediateFlush) return;
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -72,11 +79,13 @@ export class MemoryBuffer implements ILogBuffer {
 
     // Use setImmediate to allow current event loop tick to finish
     // and prevent potential recursion issues
-    setImmediate(() => {
+    this.immediateFlush = setImmediate(() => {
+      this.immediateFlush = null;
       if (this.flushCallback && this.entries.length > 0) {
         this.flushCallback();
       }
     });
+    this.immediateFlush.unref();
   }
 
   flush(): LogEntry[] {
@@ -119,6 +128,8 @@ export class MemoryBuffer implements ILogBuffer {
   }
 
   clear(): void {
+    if (this.immediateFlush) clearImmediate(this.immediateFlush);
+    this.immediateFlush = null;
     this.memoryTracker.removeEntries(this.entries);
     this.entries = [];
     if (this.flushTimer) {
@@ -187,6 +198,7 @@ export class MemoryBuffer implements ILogBuffer {
         this.flushCallback();
       }
     }, this.config.flushInterval);
+    this.flushTimer.unref();
   }
 }
 

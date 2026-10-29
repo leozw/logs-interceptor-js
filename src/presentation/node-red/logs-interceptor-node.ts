@@ -2,6 +2,8 @@
  * Node-RED Node Implementation
  * Custom node for logs-interceptor
  */
+import { safeStringify } from '../../utils';
+import { boundedSnapshot } from '../../infrastructure/memory/BoundedSnapshot';
 
 // Type declarations for Node.js globals in Node-RED context
 declare const require: (id: string) => any;
@@ -47,13 +49,7 @@ export = function (RED: any) {
     try {
       // Try to load from dist (production) or src (development)
       let logsInterceptor: any;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        logsInterceptor = require('../../../../dist/index');
-      } catch {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        logsInterceptor = require('../../index');
-      }
+      logsInterceptor = require('../../index');
       const { init } = logsInterceptor;
       
       // Get process.env safely
@@ -87,6 +83,7 @@ export = function (RED: any) {
     node.on('input', function (msg: NodeRedMessage) {
       if (!initialized || !logger) {
         node.warn('Logger not initialized');
+        node.send(msg);
         return;
       }
 
@@ -96,14 +93,14 @@ export = function (RED: any) {
         const message =
           typeof payload === 'string'
             ? payload
-            : JSON.stringify(payload);
+            : safeStringify(payload);
 
         const context: Record<string, unknown> = {
           nodeId: node.id,
           nodeName: node.name,
           topic: msg.topic,
           ...(typeof payload === 'object' && payload !== null
-            ? (payload as Record<string, unknown>)
+            ? (boundedSnapshot(payload) as Record<string, unknown>)
             : {}),
         };
 
@@ -130,10 +127,10 @@ export = function (RED: any) {
             logger.info(message, context);
         }
 
-        // Pass message through
-        node.send(msg);
       } catch (error: any) {
         node.error(`Error processing log: ${error.message}`);
+      } finally {
+        node.send(msg);
       }
     });
 

@@ -108,6 +108,11 @@ export class LogsInterceptorFactory {
       consoleInterceptor.enable();
     }
 
+    const destroy = logger.destroy.bind(logger);
+    logger.destroy = async () => {
+      consoleInterceptor?.disable();
+      await destroy();
+    };
     return { logger, consoleInterceptor };
   }
 }

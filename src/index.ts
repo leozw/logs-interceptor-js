@@ -7,6 +7,7 @@ import { HealthStatus, ILogger, LoggerMetrics } from './domain/interfaces/ILogge
 import { LogLevel } from './domain/value-objects/LogLevel';
 import { LogsInterceptorFactory } from './presentation/factory/LogsInterceptorFactory';
 import { loadConfigFromEnv, mergeConfigs } from './utils';
+import { isMainThread } from 'worker_threads';
 
 export * from './infrastructure/integrations';
 
@@ -73,8 +74,9 @@ export function isInitialized(): boolean {
  */
 export async function destroy(): Promise<void> {
   if (globalInstance) {
-    await globalInstance.destroy();
+    const owned = globalInstance;
     globalInstance = null;
+    await owned.destroy();
   }
 }
 
@@ -83,6 +85,7 @@ export async function destroy(): Promise<void> {
  * This allows the logger to work automatically when loaded via NODE_OPTIONS
  */
 function autoInit(): void {
+  if (!isMainThread) return;
   // Only auto-initialize if we have the required environment variables
   const envConfig = loadConfigFromEnv();
 
@@ -201,10 +204,7 @@ export const logger = {
    * Destroy the logger
    */
   destroy: async (): Promise<void> => {
-    if (globalInstance) {
-      await globalInstance.destroy();
-      globalInstance = null;
-    }
+    await destroy();
   },
 };
 

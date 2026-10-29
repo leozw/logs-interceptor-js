@@ -74,6 +74,8 @@ export class LokiJsonTransport implements ILogTransport {
       keepAliveMaxTimeout: 600000,
       headersTimeout: config.timeout ?? 5000,
       bodyTimeout: config.timeout ?? 5000,
+      maxResponseSize: 65536,
+      connect: { timeout: config.timeout ?? 5000 },
     });
   }
 
@@ -102,7 +104,7 @@ export class LokiJsonTransport implements ILogTransport {
       // Compress
       let compressedData: Buffer;
       const compressionStart = performance.now();
-      if (this.workerPool && jsonData.length > 10000) {
+      if (this.workerPool && jsonData.length > 10000 && this.compressor.getName() !== 'none') {
         try {
           // Use 'gzip' or 'brotli' based on compressor
           const type = this.compressor.getName() === 'brotli' ? 'brotli' : 'gzip';
@@ -142,11 +144,12 @@ export class LokiJsonTransport implements ILogTransport {
         method: 'POST',
         headers,
         body: compressedData,
+        signal: AbortSignal.timeout(Math.max(1, this.config.timeout ?? 5000)),
       });
 
       if (response.statusCode >= 300) {
-        const body = await response.body.text();
-        throw new Error(`Loki responded with ${response.statusCode}: ${body}`);
+        await response.body.text();
+        throw new Error(`Loki responded with ${response.statusCode}`);
       } else {
         await response.body.text();
       }
@@ -211,7 +214,7 @@ export class LokiJsonTransport implements ILogTransport {
     if (this.workerPool) {
       await this.workerPool.destroy();
     }
-    await this.client.close();
+    await this.client.destroy();
   }
 
   private recordSuccess(duration: number): void {

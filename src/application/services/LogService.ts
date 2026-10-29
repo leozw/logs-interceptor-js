@@ -15,6 +15,7 @@ import { ILogTransport } from '../../domain/interfaces/ILogTransport';
 import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { LogLevelVO } from '../../domain/value-objects/LogLevel';
 import { MetricsCollector } from '../../infrastructure/metrics/MetricsCollector';
+import { boundedSnapshot } from '../../infrastructure/memory/BoundedSnapshot';
 
 export class LogService implements ILogger {
   private metrics: LoggerMetrics & {
@@ -32,6 +33,9 @@ export class LogService implements ILogger {
   };
   private startTime: number;
   private metricsCollector: MetricsCollector;
+  private pendingFlush?: Promise<void>;
+  private closing = false;
+  private destroyPromise?: Promise<void>;
 
   constructor(
     private readonly filter: ILogFilter,
@@ -102,6 +106,7 @@ export class LogService implements ILogger {
   }
 
   log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
+    if (this.closing) return;
     if (!this.filter.isLevelEnabled(level)) {
       return;
     }
@@ -162,8 +167,8 @@ export class LogService implements ILogger {
       level,
       message,
       {
-        ...asyncContext,
-        ...context,
+        ...boundedSnapshot(asyncContext) as Record<string, unknown>,
+        ...boundedSnapshot(context) as Record<string, unknown>,
       },
       traceId,
       spanId,
@@ -176,7 +181,7 @@ export class LogService implements ILogger {
         hostname: os.hostname(),
         pid: String(process.pid),
         ...this.config.labels,
-        ...dynamicLabels,
+        ...Object.fromEntries(Object.entries(dynamicLabels).filter(([key]) => !['trace_id', 'span_id', 'request_id'].includes(key))),
       },
       {
         memoryUsage: this.metrics.memoryUsage,
@@ -186,6 +191,12 @@ export class LogService implements ILogger {
   }
 
   async flush(): Promise<void> {
+    if (this.pendingFlush) return this.pendingFlush;
+    this.pendingFlush = this.flushBatch().finally(() => { this.pendingFlush = undefined; });
+    return this.pendingFlush;
+  }
+
+  private async flushBatch(): Promise<void> {
     if (this.buffer.size() === 0) {
       return;
     }
@@ -259,8 +270,22 @@ export class LogService implements ILogger {
   }
 
   async destroy(): Promise<void> {
-    await this.flush();
-    await this.transport.destroy();
+    if (this.destroyPromise) return this.destroyPromise;
+    this.closing = true;
+    this.destroyPromise = (async () => {
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          (async () => { await this.flush(); await this.flush(); })(),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Legacy log drain deadline exceeded')), 5000); }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+        this.buffer.clear();
+        await this.transport.destroy();
+      }
+    })();
+    return this.destroyPromise;
   }
 
   private updateMetrics(): void {

@@ -6,6 +6,8 @@ import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { LogLevelVO } from '../../domain/value-objects/LogLevel';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import { sanitizeData, detectSensitiveData, shouldSample } from '../../utils';
+import { boundedSnapshot } from '../memory/BoundedSnapshot';
+import { applyLabelPolicy } from './LabelPolicy';
 
 export interface LogFilterConfig {
   readonly levels: LogLevel[];
@@ -28,7 +30,7 @@ export class LogFilter implements ILogFilter {
     // Check message patterns
     if (this.config.patterns.length > 0) {
       const shouldInclude = this.config.patterns.some((pattern) =>
-        pattern.test(entry.message)
+        (pattern.lastIndex = 0, pattern.test(entry.message.slice(0, this.config.maxMessageLength)))
       );
       if (!shouldInclude) {
         return false;
@@ -53,7 +55,7 @@ export class LogFilter implements ILogFilter {
     }
 
     // Sanitize sensitive data
-    let context = entry.context;
+    let context = entry.context ? boundedSnapshot(entry.context) as Record<string, unknown> : undefined;
     if (this.config.sanitize && context) {
       context = sanitizeData(context, this.config.sensitivePatterns);
     }
@@ -69,6 +71,7 @@ export class LogFilter implements ILogFilter {
       ...entry,
       message,
       context,
+      labels: entry.labels ? applyLabelPolicy(entry.labels, this.config) : undefined,
     };
   }
 

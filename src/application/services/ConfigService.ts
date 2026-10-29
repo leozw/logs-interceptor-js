@@ -3,6 +3,7 @@
  * Handles configuration loading, validation, and resolution
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
+import safeRegex from 'safe-regex2';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -19,6 +20,24 @@ export class ConfigService {
    */
   static validate(config: Partial<LogsInterceptorConfig>): string[] {
     const errors: string[] = [];
+    for (const [name, value, min, max] of [
+      ['timeout', config.transport?.timeout, 1, 30000],
+      ['maxRetries', config.transport?.maxRetries, 0, 20],
+      ['retryDelay', config.transport?.retryDelay, 0, 30000],
+      ['maxWorkers', config.transport?.maxWorkers, 1, 16],
+      ['maxSockets', config.transport?.maxSockets, 1, 256],
+      ['maxSize', config.buffer?.maxSize, 1, 10000],
+      ['maxMemoryMB', config.buffer?.maxMemoryMB, 0.001, 1024],
+      ['maxMessageLength', config.filter?.maxMessageLength, 1, 65536],
+    ] as const) {
+      if (value !== undefined && (!Number.isFinite(value) || value < min || value > max)) errors.push(`${name} must be finite and between ${min} and ${max}`);
+    }
+    for (const patterns of [config.filter?.patterns, config.filter?.sensitivePatterns]) {
+      if (!patterns) continue;
+      if (patterns.length > 32 || patterns.some(pattern => !(pattern instanceof RegExp) || pattern.source.length > 512 || !safeRegex(pattern))) {
+        errors.push('Log patterns must be bounded safe regular expressions (at most 32, 512 characters each)');
+      }
+    }
 
     if (!config.transport?.url) {
       errors.push('Transport URL is required');

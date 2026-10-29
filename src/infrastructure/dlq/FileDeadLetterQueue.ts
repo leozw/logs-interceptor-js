@@ -3,10 +3,12 @@
  * Persists failed log entries to disk for later retry
  */
 import { existsSync } from 'fs';
-import { appendFile, mkdir, readFile, unlink } from 'fs/promises';
+import { appendFile, mkdir, readFile, stat, unlink } from 'fs/promises';
 import { join } from 'path';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import { IDeadLetterQueue } from '../../domain/interfaces/IDeadLetterQueue';
+import { internalWarn } from '../../utils';
+import { boundedSnapshot } from '../memory/BoundedSnapshot';
 
 interface DLQEntry {
   entry: LogEntry;
@@ -28,21 +30,18 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
   private readonly maxSize: number;
   private readonly maxFileSizeMB: number;
   private readonly maxRetries: number;
+  private readonly ready: Promise<void>;
 
   constructor(config: FileDLQConfig = {}) {
     const basePath = config.basePath || process.cwd();
     const dlqDir = join(basePath, '.logs-interceptor-dlq');
 
     // Ensure directory exists
-    if (!existsSync(dlqDir)) {
-      mkdir(dlqDir, { recursive: true }).catch(() => {
-        // Ignore errors, will fail on write if needed
-      });
-    }
+    this.ready = mkdir(dlqDir, { recursive: true, mode: 0o700 }).then(() => {}, () => {});
 
     this.filePath = join(dlqDir, `dlq-${Date.now()}.jsonl`);
-    this.maxSize = config.maxSize ?? 1000;
-    this.maxFileSizeMB = config.maxFileSizeMB ?? 10;
+    this.maxSize = Number.isFinite(config.maxSize) ? Math.max(1, Math.min(10000, config.maxSize!)) : 1000;
+    this.maxFileSizeMB = Number.isFinite(config.maxFileSizeMB) ? Math.max(0.001, Math.min(100, config.maxFileSizeMB!)) : 10;
     this.maxRetries = config.maxRetries ?? 3;
   }
 
@@ -56,10 +55,12 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
     const timestamp = Date.now();
     const batchData: string[] = [];
 
-    for (const entry of entries) {
+    for (const entry of entries.slice(-this.maxSize)) {
+      const snapshot = boundedSnapshot(entry, 8, 16384);
+      if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) continue;
       const dlqEntry: DLQEntry = {
-        entry,
-        reason,
+        entry: snapshot as LogEntry,
+        reason: reason.slice(0, 1024),
         timestamp,
         retryCount: 0,
       };
@@ -95,7 +96,7 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
         await unlink(this.filePath);
       }
     } catch (error) {
-      console.warn('[FileDLQ] Failed to clear file:', error);
+      internalWarn('File DLQ clear failed');
     }
   }
 
@@ -107,10 +108,13 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
 
   private async persistBatchToDisk(lines: string[]): Promise<void> {
     try {
+      await this.ready;
       const content = lines.join('\n') + '\n';
-      await appendFile(this.filePath, content, 'utf8');
+      const size = existsSync(this.filePath) ? (await stat(this.filePath)).size : 0;
+      if (size + Buffer.byteLength(content) > this.maxFileSizeMB * 1024 * 1024) throw new Error('Legacy DLQ file limit');
+      await appendFile(this.filePath, content, { encoding: 'utf8', mode: 0o600 });
     } catch (error) {
-      console.warn('[FileDLQ] Failed to write to disk:', error);
+      internalWarn('File DLQ write failed or size limit reached');
     }
   }
 
@@ -119,14 +123,16 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
    */
   async loadFromDisk(): Promise<number> {
     try {
+      await this.ready;
       if (!existsSync(this.filePath)) {
         return 0;
       }
 
+      if ((await stat(this.filePath)).size > this.maxFileSizeMB * 1024 * 1024) return 0;
       const content = await readFile(this.filePath, 'utf8');
       const lines = content.trim().split('\n').filter((line: string) => line.trim());
 
-      for (const line of lines) {
+      for (const line of lines.slice(-this.maxSize)) {
         try {
           const entry: DLQEntry = JSON.parse(line);
           this.queue.push(entry);
@@ -135,9 +141,10 @@ export class FileDeadLetterQueue implements IDeadLetterQueue {
         }
       }
 
+      this.queue = this.queue.slice(-this.maxSize);
       return this.queue.length;
     } catch (error) {
-      console.warn('[FileDLQ] Failed to load from disk:', error);
+      internalWarn('File DLQ recovery failed');
       return 0;
     }
   }

@@ -13,6 +13,8 @@ export interface ResilientTransportConfig {
 }
 
 export class ResilientTransport implements ILogTransport {
+  private destroyed = false;
+  private sleepers = new Map<NodeJS.Timeout, () => void>();
   constructor(
     private readonly transport: ILogTransport,
     private readonly config: ResilientTransportConfig,
@@ -21,17 +23,18 @@ export class ResilientTransport implements ILogTransport {
   ) { }
 
   async send(entries: LogEntry[]): Promise<void> {
+    if (this.destroyed) throw new Error('Legacy transport closed');
     const operation = async () => this.transport.send(entries);
 
     try {
       if (this.circuitBreaker) {
-        await this.circuitBreaker.execute(operation);
+        await this.circuitBreaker.execute(() => this.retryOperation(operation));
       } else {
         await this.retryOperation(operation);
       }
     } catch (error) {
       // Send all failed logs to DLQ
-      if (this.dlq) {
+      if (this.dlq && !this.destroyed) {
         await this.dlq.addBatch(entries, (error as Error).message).catch(() => {
           // Ignore DLQ errors to prevent loop
         });
@@ -47,7 +50,10 @@ export class ResilientTransport implements ILogTransport {
   ): Promise<T> {
     let lastError: Error;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    maxRetries = Number.isFinite(maxRetries) ? Math.floor(Math.min(20, Math.max(0, maxRetries))) : 3;
+    delay = Number.isFinite(delay) ? Math.min(30000, Math.max(0, delay)) : 1000;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (this.destroyed) throw new Error('Legacy transport closed');
       try {
         return await operation();
       } catch (error) {
@@ -57,11 +63,12 @@ export class ResilientTransport implements ILogTransport {
           throw lastError;
         }
 
-        const backoffDelay = delay * Math.pow(2, attempt - 1);
+        const backoffDelay = Math.min(30000, delay * Math.pow(2, attempt));
         const jitter = Math.random() * 1000;
-        await new Promise((resolve) =>
-          setTimeout(resolve, backoffDelay + jitter)
-        );
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => { this.sleepers.delete(timer); resolve(); }, backoffDelay + jitter);
+          this.sleepers.set(timer, () => reject(new Error('Legacy transport closed')));
+        });
       }
     }
 
@@ -91,6 +98,9 @@ export class ResilientTransport implements ILogTransport {
   }
 
   async destroy(): Promise<void> {
+    this.destroyed = true;
+    for (const [timer, cancel] of this.sleepers) { clearTimeout(timer); cancel(); }
+    this.sleepers.clear();
     await this.transport.destroy();
   }
 }

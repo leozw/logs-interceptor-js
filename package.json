@@ -1,12 +1,14 @@
 {
   "name": "logs-interceptor",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "description": "High-performance, production-ready log interceptor for Node.js applications with Loki integration. Built with Clean Architecture principles. Supports Node.js, Browser, and Node-RED.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist/**/*",
-    "preload.js"
+    "preload.js",
+    "RECOVERY.md",
+    "AUDIT-LEGACY.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -16,7 +18,8 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "dev": "ts-node src/index.ts",
-    "prepublishOnly": "npm run build"
+    "test:runtime": "npm run build && node --test tests/*.test.cjs",
+    "prepublishOnly": "npm run build && npm test -- --runInBand && node --test tests/*.test.cjs"
   },
   "keywords": [
     "loki",
@@ -35,9 +38,10 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "dotenv": "^16.6.1",
-    "protobufjs": "^7.2.6",
+    "protobufjs": "^7.6.5",
+    "safe-regex2": "^5.1.2",
     "snappy": "^7.2.2",
-    "undici": "^6.6.0",
+    "undici": "^6.29.1",
     "winston-transport": "^4.9.0"
   },
   "devDependencies": {
@@ -60,6 +64,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/leozw/logs-interceptor.git"
+    "url": "git+https://github.com/leozw/logs-interceptor-js.git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "provenance": true
   }
 }

@@ -43,6 +43,8 @@ export class LokiProtobufTransport implements ILogTransport {
       keepAliveMaxTimeout: 600000,
       headersTimeout: config.timeout ?? 5000,
       bodyTimeout: config.timeout ?? 5000,
+      maxResponseSize: 65536,
+      connect: { timeout: config.timeout ?? 5000 },
     });
     this.initProtobuf();
   }
@@ -114,11 +116,12 @@ export class LokiProtobufTransport implements ILogTransport {
         method: 'POST',
         headers,
         body: compressed,
+        signal: AbortSignal.timeout(Math.max(1, this.config.timeout ?? 5000)),
       });
 
       if (response.statusCode >= 300) {
-        const body = await response.body.text();
-        throw new Error(`Loki responded with ${response.statusCode}: ${body}`);
+        await response.body.text();
+        throw new Error(`Loki responded with ${response.statusCode}`);
       } else {
         // Consume body to free socket
         await response.body.text();
@@ -192,7 +195,7 @@ export class LokiProtobufTransport implements ILogTransport {
   }
 
   async destroy(): Promise<void> {
-    await this.client.close();
+    await this.client.destroy();
   }
 
   private recordSuccess(duration: number): void {

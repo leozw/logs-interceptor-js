@@ -1,15 +1,25 @@
 # Logs Interceptor
 
+Review candidate: `logs-interceptor@2.1.7`, unpublished. This is not an alias for
+`elven-logs-interceptor`. See [source recovery](RECOVERY.md) and
+[security changes and limitations](AUDIT-LEGACY.md). Legacy LOGS_INTERCEPTOR_*
+configuration is retained. Use maintained Node 22/24/26; Node 18/20 are EOL.
+
+Official [Node integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
+and [documentation source](https://github.com/elvenworks-ps/docs.elven.works).
+Do not substitute the renamed package without an explicit environment/API and
+transport migration. No release workflow for this branch has been dispatched.
+
 [![npm version](https://img.shields.io/npm/v/logs-interceptor.svg)](https://www.npmjs.com/package/logs-interceptor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Logs Interceptor** is a battle-hardened, high-performance logging client for Node.js. It intercepts logs (Console, Winston, Morgan) and ships them efficiently to [Grafana Loki](https://grafana.com/oss/loki/).
+**Logs Interceptor** captures Console, Winston and Morgan logs for [Grafana Loki](https://grafana.com/oss/loki/). Overhead and delivery depend on workload, configuration and collector availability.
 
 ## Why use this?
 
-*   **⚡ Zero Blocking**: Uses Worker Threads and async batching. Your API latency won't spike because of logging.
-*   **📉 Smart Compression**: Supports **Protobuf + Snappy** (80% less bandwidth) or Gzip (compatibility).
-*   **🛡️ Data Loss Prevention**: Built-in **Circuit Breaker** and **File-based Dead Letter Queue (DLQ)**.
+*   Bounded Worker tasks and asynchronous batches; no universal overhead guarantee.
+*   Protobuf + Snappy, Gzip and Brotli; compression savings vary by payload.
+*   Circuit breaker and optional passive file DLQ; neither guarantees zero loss or automatic replay.
 *   **🧠 Intelligent**: Automatically intercepts `console.log` and extracts structured metadata.
 *   **🔌 Universal**: Works with any Node.js framework (Express, NestJS, Fastify).
 
