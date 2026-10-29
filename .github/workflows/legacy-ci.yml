@@ -27,6 +27,8 @@ jobs:
       - run: npm test -- --runInBand --detectOpenHandles
       - run: node --test tests/*.test.cjs
       - run: npm audit --omit=dev
+      - name: Reject stale build outputs
+        run: node tests/build-clean.cjs
       - name: Pack reviewed legacy identity without publishing
         run: node tests/pack-receipt.cjs
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

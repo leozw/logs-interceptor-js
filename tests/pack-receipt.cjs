@@ -15,6 +15,7 @@ const [packed] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--
 const files = new Set(packed.files.map(file => file.path));
 for (const file of ['dist/index.js', 'dist/index.d.ts', 'preload.js', 'RECOVERY.md', 'AUDIT-LEGACY.md']) assert.ok(files.has(file), file);
 assert.ok(![...files].some(file => /(^|\/)(\.env|\.npmrc|node_modules)(\/|$)/.test(file)));
+assert.ok(![...files].some(file => /(^|\/)(__tests__|tests)(\/|$)|\.(test|spec)\.[cm]?js$/.test(file)), 'Stale test outputs in archive');
 const archive = fs.readFileSync(path.join(directory, packed.filename));
 const receipt = {
   name: pkg.name, version: pkg.version,

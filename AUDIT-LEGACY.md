@@ -28,6 +28,8 @@ Backport changes:
 - compatible dependency resolution fixes known production advisories, with no
   overrides, forced downgrade or renamed identity. Jest deepmerge remains a
   development advisory without a compatible upstream remediation.
+- clean generated build output before compilation and reject test artifacts in
+  the archive; clean hosted and local candidate content must match.
 
 Security budgets intentionally truncate oversized graphs, drop over-budget
 buffer data and reject unsafe/over-budget configuration. Original stdout may

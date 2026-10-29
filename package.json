@@ -11,7 +11,7 @@
     "AUDIT-LEGACY.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/build.cjs",
     "build:watch": "tsc --watch",
     "test": "jest",
     "test:watch": "jest --watch",
