@@ -18,6 +18,7 @@ import { ILogTransport } from '../../domain/interfaces/ILogTransport';
 import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { MetricsCollector } from '../../infrastructure/metrics/MetricsCollector';
 import { internalWarn } from '../../utils';
+import { boundedSnapshot } from '../../infrastructure/memory/BoundedSnapshot';
 
 interface FlushTask {
   entries: LogEntryEntity[];
@@ -51,6 +52,7 @@ export class LogService implements ILogger {
   private readonly maxPendingBatches: number;
 
   private destroyed = false;
+  private destroyPromise?: Promise<void>;
   private logSequence = 0;
   private lastResourceSampleAt = 0;
   private readonly resourceSampleIntervalMs = 1000;
@@ -75,7 +77,8 @@ export class LogService implements ILogger {
       enableMetrics: boolean;
       maxConcurrentFlushes: number;
       maxPendingBatches: number;
-    }
+      shutdownTimeoutMillis?: number;
+    },
   ) {
     this.startTime = Date.now();
     this.hostname = os.hostname();
@@ -150,12 +153,16 @@ export class LogService implements ILogger {
 
   withContextAsync<T>(
     context: Record<string, unknown>,
-    fn: () => Promise<T>
+    fn: () => Promise<T>,
   ): Promise<T> {
     return this.contextProvider.runWithContextAsync(context, fn);
   }
 
-  log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
+  log(
+    level: LogLevel,
+    message: string,
+    context?: Record<string, unknown>,
+  ): void {
     if (this.destroyed) {
       this.metrics.logsDropped++;
       return;
@@ -165,24 +172,30 @@ export class LogService implements ILogger {
       return;
     }
 
-    const entry = this.createLogEntry(level, message, context);
+    try {
+      const entry = this.createLogEntry(level, message, context);
 
-    if (!this.filter.shouldProcess(entry)) {
+      if (!this.filter.shouldProcess(entry)) {
+        this.metrics.logsDropped++;
+        return;
+      }
+
+      const filteredEntry = this.filter.filter(entry);
+      if (
+        filteredEntry.message !== entry.message ||
+        filteredEntry.context !== entry.context
+      ) {
+        this.metrics.logsSanitized++;
+      }
+
+      this.buffer.add(filteredEntry);
+      this.metrics.logsProcessed++;
+      this.updateMetrics();
+    } catch {
+      // Telemetry must not throw through the application's logging call.
       this.metrics.logsDropped++;
-      return;
+      this.metrics.errorCount++;
     }
-
-    const filteredEntry = this.filter.filter(entry);
-    if (
-      filteredEntry.message !== entry.message ||
-      filteredEntry.context !== entry.context
-    ) {
-      this.metrics.logsSanitized++;
-    }
-
-    this.buffer.add(filteredEntry);
-    this.metrics.logsProcessed++;
-    this.updateMetrics();
   }
 
   trackEvent(eventName: string, properties?: Record<string, unknown>): void {
@@ -192,7 +205,7 @@ export class LogService implements ILogger {
   private createLogEntry(
     level: LogLevel,
     message: string,
-    context?: Record<string, unknown>
+    context?: Record<string, unknown>,
   ): LogEntryEntity {
     const asyncContext = this.contextProvider.getContext();
     const logId = `${Date.now().toString(36)}-${(this.logSequence++).toString(36)}`;
@@ -209,7 +222,7 @@ export class LogService implements ILogger {
         }
         return acc;
       },
-      {} as Record<string, string>
+      {} as Record<string, string>,
     );
 
     const spanContext = trace.getActiveSpan()?.spanContext();
@@ -222,8 +235,8 @@ export class LogService implements ILogger {
       level,
       message,
       {
-        ...asyncContext,
-        ...context,
+        ...(boundedSnapshot(asyncContext) as Record<string, unknown>),
+        ...(boundedSnapshot(context) as Record<string, unknown>),
       },
       traceId,
       spanId,
@@ -236,12 +249,16 @@ export class LogService implements ILogger {
         hostname: this.hostname,
         pid: this.pid,
         ...this.config.labels,
-        ...dynamicLabels,
+        ...Object.fromEntries(
+          Object.entries(dynamicLabels).filter(
+            ([key]) => !['trace_id', 'span_id', 'request_id'].includes(key),
+          ),
+        ),
       },
       {
         memoryUsage: this.metrics.memoryUsage,
         cpuUsage: this.metrics.cpuUsage,
-      }
+      },
     );
   }
 
@@ -318,7 +335,8 @@ export class LogService implements ILogger {
       this.metrics.flushCount++;
       this.metrics.lastFlushTime = Date.now();
       this.metrics.avgFlushTime =
-        (this.metrics.avgFlushTime * (this.metrics.flushCount - 1) + flushTime) /
+        (this.metrics.avgFlushTime * (this.metrics.flushCount - 1) +
+          flushTime) /
         this.metrics.flushCount;
 
       this.updateMetrics();
@@ -400,15 +418,17 @@ export class LogService implements ILogger {
   }
 
   async destroy(): Promise<void> {
-    if (this.destroyed) {
-      return;
-    }
+    if (this.destroyPromise) return this.destroyPromise;
+    this.destroyPromise = this.destroyInternal();
+    return this.destroyPromise;
+  }
 
+  private async destroyInternal(): Promise<void> {
     this.destroyed = true;
 
     let flushError: Error | undefined;
-
-    try {
+    let timer: NodeJS.Timeout | undefined;
+    const drain = async () => {
       if (this.buffer.size() > 0) {
         const entries = this.buffer.flush() as LogEntryEntity[];
         if (entries.length > 0) {
@@ -417,9 +437,25 @@ export class LogService implements ILogger {
       }
 
       await this.waitForQueueIdle();
+    };
+    try {
+      await Promise.race([
+        drain(),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Log shutdown deadline exceeded')),
+            this.config.shutdownTimeoutMillis ?? 10_000,
+          );
+        }),
+      ]);
     } catch (error) {
       flushError = error as Error;
+      for (const task of this.flushQueue.splice(0)) {
+        this.queueDroppedEntries += task.entries.length;
+        task.reject(flushError);
+      }
     } finally {
+      if (timer) clearTimeout(timer);
       this.buffer.destroy();
       await this.transport.destroy();
     }
@@ -433,7 +469,10 @@ export class LogService implements ILogger {
     if (!this.config.enableMetrics) return;
 
     const now = Date.now();
-    if (!force && now - this.lastResourceSampleAt < this.resourceSampleIntervalMs) {
+    if (
+      !force &&
+      now - this.lastResourceSampleAt < this.resourceSampleIntervalMs
+    ) {
       this.metrics.bufferSize = this.buffer.size();
       return;
     }

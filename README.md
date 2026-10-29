@@ -1,5 +1,51 @@
 # Elven Logs Interceptor
 
+Candidate `1.1.1`; publication is coordinated separately.
+Official [Node.js integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
+and [documentation source](https://github.com/elvenworks-ps/docs.elven.works).
+
+## Compatibility And Limits
+
+The production compatibility floor is `^18.19.0 || >=20.6.0`, matching the OTel
+`2.12.x` / `0.223.x` generation. Node 18/20 are EOL, not maintained deployment
+targets. Prefer patched Node 22/24/26; see [Node releases](https://nodejs.org/en/about/previous-releases).
+OTel 3.x requires a separate major migration. CJS and native ESM imports are
+supported; the package itself remains CommonJS.
+
+`logs-interceptor@2.1.6` is a separate legacy npm identity, not an alias silently
+redirected by this package. Audit its API/config and migrate explicitly; the
+larger version number does not mean it is newer than `elven-logs-interceptor`.
+
+Graphs are copied before queueing, without invoking getters or `toJSON`.
+Snapshots use shared limits of 500 nodes, depth 8, 100 array elements and a
+text budget; Buffer/typed-array payloads become size summaries. Console capture
+limits 32 arguments and 8192 characters; original console output, when enabled,
+still receives the original arguments and is NOT sanitized by this library.
+Disable preservation or sanitize at the application source for stdout privacy.
+Custom regexes are conservatively checked with safe-regex2, capped to 32 patterns
+and 256 source characters each. This heuristic is not a proof of linear time;
+only trusted configuration belongs here. Built-in email scanning is bounded.
+
+Buffer memory accounting includes nested payloads but is an estimate, not a
+process RSS limit. Defaults retain 100 entries, 2 active and 2 queued batches;
+DLQ, retry, serialization, native compression and Workers use additional memory.
+Config rejects non-finite values and extreme queue, payload, timeout and worker
+sizes. Retries are capped to 5 and backoff to 30 seconds. Loki requests have a
+whole-request deadline and a 64 KiB response budget. Export operations suppress
+tracing to avoid tracing their own HTTP requests. Correlation IDs remain log
+fields instead of automatically creating one Loki stream per request. Custom
+dynamic labels still require a low-cardinality value set.
+
+Idle timers and Workers do not pin process exit. Manual drain defaults to a
+10-second deadline (`performance.shutdownTimeoutMillis`, maximum 60 seconds),
+followed by transport cleanup. Expired drains reject and cancel queued work,
+backoff sleeps and active Loki/OTLP connections; this may drop pending telemetry.
+Await `logger.destroy()` before
+exit to drain; outstanding work is not durable delivery. Preload skips Workers;
+child/cluster processes initialize independently. Internal Workers strip inherited
+`NODE_OPTIONS`. File DLQ is opt-in, plaintext, single-process storage; use a
+distinct private directory per process. No automatic replay is promised.
+
 High-performance log interceptor for Node.js with Loki and OTLP collector transports, batching, compression, circuit breaker, and bounded queues.
 
 ## Installation
@@ -56,6 +102,9 @@ export LOGS_APP_NAME=billing-service
 
 The `/v1/logs` path is appended automatically. `LOGS_TENANT` and `LOGS_TOKEN`
 are not required in this mode.
+`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` is an exact endpoint and is not suffixed.
+In code, set `transport.logsUrl` for an exact custom gateway path; `transport.url`
+continues to mean the collector base URL.
 
 ## Environment Variables (Official)
 

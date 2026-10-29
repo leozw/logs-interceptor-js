@@ -58,7 +58,7 @@ describe('memory safety', () => {
       metadata: {},
     });
 
-    expect(filtered.context?._truncated).toBe(true);
+    expect(JSON.stringify(filtered.context)).toContain('truncated');
     expect(Buffer.byteLength(JSON.stringify(filtered.context), 'utf8')).toBeLessThan(1024);
   });
 

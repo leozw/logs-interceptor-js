@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import { LogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
 import { LogLevel, LogLevelVO } from './domain/value-objects/LogLevel';
+import { boundedSnapshot } from './infrastructure/memory/BoundedSnapshot';
 
 const internalConsole = {
   debug: console.log.bind(console),
@@ -77,6 +78,7 @@ export interface EnvironmentConfig {
 export interface TransportOptions {
   type?: 'loki' | 'otlp';
   url: string;
+  logsUrl?: string;
   tenantId?: string;
   authToken?: string;
   headers?: Record<string, string>;
@@ -88,7 +90,7 @@ export interface TransportOptions {
 
 export function parseBool(
   value: string | undefined,
-  defaultValue: boolean
+  defaultValue: boolean,
 ): boolean {
   if (value === undefined) {
     return defaultValue;
@@ -109,7 +111,7 @@ export function parseIntRange(
   value: string | undefined,
   defaultValue: number,
   min: number,
-  max: number
+  max: number,
 ): number {
   if (value === undefined) {
     return defaultValue;
@@ -131,7 +133,7 @@ export function parseFloatRange(
   value: string | undefined,
   defaultValue: number,
   min: number,
-  max: number
+  max: number,
 ): number {
   if (value === undefined) {
     return defaultValue;
@@ -199,135 +201,12 @@ export function internalError(message: string, context?: unknown): void {
 /**
  * Safely stringify any value, handling circular references and non-serializable objects
  */
-export function safeStringify(value: unknown, maxDepth: number = 10): string {
-  const seen = new WeakSet();
-
-  try {
-    return JSON.stringify(
-      value,
-      function replacer(_key, val) {
-        if (val === null || val === undefined) {
-          return val;
-        }
-
-        if (typeof val === 'function') {
-          return `[Function: ${val.name || 'anonymous'}]`;
-        }
-
-        if (typeof val === 'symbol') {
-          return `[Symbol: ${val.toString()}]`;
-        }
-
-        if (typeof val === 'bigint') {
-          return `${val.toString()}n`;
-        }
-
-        if (val instanceof Error) {
-          return {
-            name: val.name,
-            message: val.message,
-            stack: val.stack,
-            code: (val as any).code,
-          };
-        }
-
-        if (val instanceof Date) {
-          return val.toISOString();
-        }
-
-        if (val instanceof RegExp) {
-          return val.toString();
-        }
-
-        if (typeof val === 'object') {
-          if (seen.has(val)) {
-            return '[Circular Reference]';
-          }
-          seen.add(val);
-
-          const depth = getObjectDepth(val, maxDepth);
-          if (depth > maxDepth) {
-            return '[Max Depth Reached]';
-          }
-
-          if (val instanceof Buffer) {
-            return `[Buffer: ${val.length} bytes]`;
-          }
-
-          if (val instanceof Promise) {
-            return '[Promise]';
-          }
-
-          if (val instanceof WeakMap || val instanceof WeakSet) {
-            return `[${val.constructor.name}]`;
-          }
-
-          if (val instanceof Map) {
-            return {
-              type: 'Map',
-              entries: Array.from(val.entries()),
-            };
-          }
-
-          if (val instanceof Set) {
-            return {
-              type: 'Set',
-              values: Array.from(val.values()),
-            };
-          }
-        }
-
-        return val;
-      },
-      0
-    );
-  } catch (error) {
-    return `[Unserializable: ${error instanceof Error ? error.message : 'Unknown error'}]`;
-  }
-}
-
-function getObjectDepth(value: unknown, maxDepth: number): number {
-  if (value === null || typeof value !== 'object') {
-    return 0;
-  }
-
-  let currentDepth = 0;
-  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 1 }];
-  const visited = new WeakSet<object>();
-
-  while (stack.length > 0) {
-    const item = stack.pop();
-    if (!item) {
-      continue;
-    }
-
-    const { value: current, depth } = item;
-    if (depth > currentDepth) {
-      currentDepth = depth;
-    }
-
-    if (currentDepth > maxDepth) {
-      return currentDepth;
-    }
-
-    if (current === null || typeof current !== 'object') {
-      continue;
-    }
-
-    if (visited.has(current)) {
-      continue;
-    }
-
-    visited.add(current);
-
-    for (const nested of Object.values(current as Record<string, unknown>)) {
-      if (nested && typeof nested === 'object') {
-        stack.push({ value: nested, depth: depth + 1 });
-      }
-    }
-  }
-
-  return currentDepth;
+export function safeStringify(
+  value: unknown,
+  maxDepth: number = 10,
+  maxBytes = 16_384,
+): string {
+  return JSON.stringify(boundedSnapshot(value, maxDepth, maxBytes));
 }
 
 /**
@@ -335,13 +214,14 @@ function getObjectDepth(value: unknown, maxDepth: number): number {
  */
 export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
   for (const pattern of patterns) {
+    pattern.lastIndex = 0;
     if (pattern.test(text)) {
       return true;
     }
   }
 
   const commonPatterns = [
-    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, // Email
+    /\b[A-Za-z0-9._%+-]{1,256}@[A-Za-z0-9.-]{1,256}\.[A-Za-z]{2,63}\b/, // Bounded email scan
     /\b(?:\d{4}[-\s]?){3}\d{4}\b/, // Credit card
     /\b\d{3}-\d{2}-\d{4}\b/, // SSN
     /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/, // CPF (Brazilian)
@@ -363,12 +243,17 @@ export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
  */
 export function sanitizeData(
   data: Record<string, unknown>,
-  sensitivePatterns: RegExp[]
+  sensitivePatterns: RegExp[],
 ): Record<string, unknown> {
+  data = boundedSnapshot(data) as Record<string, unknown>;
+  if (!data || typeof data !== 'object') return { _value: data };
   const seen = new WeakSet<object>();
   const state = { entries: 0 };
 
-  const visit = (value: Record<string, unknown>, depth: number): Record<string, unknown> => {
+  const visit = (
+    value: Record<string, unknown>,
+    depth: number,
+  ): Record<string, unknown> => {
     if (seen.has(value)) {
       return { _circular: '[REDACTED]' };
     }
@@ -377,7 +262,7 @@ export function sanitizeData(
     }
 
     seen.add(value);
-    const sanitized: Record<string, unknown> = {};
+    const sanitized: Record<string, unknown> = Object.create(null);
 
     for (const [key, nestedValue] of Object.entries(value)) {
       state.entries++;
@@ -385,47 +270,55 @@ export function sanitizeData(
         sanitized._truncated = '[ENTRY_LIMIT_REACHED]';
         break;
       }
-    const isKeySensitive = sensitivePatterns.some((pattern) => pattern.test(key));
+      const isKeySensitive = sensitivePatterns.some((pattern) => {
+        pattern.lastIndex = 0;
+        return pattern.test(key);
+      });
 
-    if (isKeySensitive) {
-      sanitized[key] = '[REDACTED]';
-      continue;
-    }
+      if (isKeySensitive) {
+        sanitized[key] = '[REDACTED]';
+        continue;
+      }
 
       if (typeof nestedValue === 'string') {
-        const limitedValue = nestedValue.length > 4096
-          ? `${nestedValue.slice(0, 4096)}...[truncated]`
-          : nestedValue;
+        const limitedValue =
+          nestedValue.length > 4096
+            ? `${nestedValue.slice(0, 4096)}...[truncated]`
+            : nestedValue;
         sanitized[key] = detectSensitiveData(limitedValue, sensitivePatterns)
-        ? '[REDACTED]'
+          ? '[REDACTED]'
           : limitedValue;
-      continue;
-    }
+        continue;
+      }
 
       if (Array.isArray(nestedValue)) {
         sanitized[key] = nestedValue.slice(0, 100).map((item) => {
-        if (typeof item === 'string') {
-            const limitedItem = item.length > 4096
-              ? `${item.slice(0, 4096)}...[truncated]`
-              : item;
+          if (typeof item === 'string') {
+            const limitedItem =
+              item.length > 4096
+                ? `${item.slice(0, 4096)}...[truncated]`
+                : item;
             return detectSensitiveData(limitedItem, sensitivePatterns)
               ? '[REDACTED]'
               : limitedItem;
-        }
+          }
 
-        if (item && typeof item === 'object') {
+          if (item && typeof item === 'object') {
             return visit(item as Record<string, unknown>, depth + 1);
-        }
+          }
 
-        return item;
-      });
-      continue;
-    }
+          return item;
+        });
+        continue;
+      }
 
       if (nestedValue && typeof nestedValue === 'object') {
-        sanitized[key] = visit(nestedValue as Record<string, unknown>, depth + 1);
-      continue;
-    }
+        sanitized[key] = visit(
+          nestedValue as Record<string, unknown>,
+          depth + 1,
+        );
+        continue;
+      }
 
       sanitized[key] = nestedValue;
     }
@@ -440,7 +333,11 @@ export function sanitizeData(
  * Hash sensitive data for tracking without exposing it
  */
 export function hashSensitiveData(data: string): string {
-  return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
+  return crypto
+    .createHash('sha256')
+    .update(data)
+    .digest('hex')
+    .substring(0, 16);
 }
 
 /**
@@ -488,7 +385,7 @@ export function shouldSample(rate: number): boolean {
 export function shouldSampleAdvanced(
   rate: number,
   strategy: 'random' | 'deterministic' | 'adaptive' = 'random',
-  key?: string
+  key?: string,
 ): boolean {
   if (rate >= 1.0) return true;
   if (rate <= 0.0) return false;
@@ -529,7 +426,10 @@ export function formatBytes(bytes: number): string {
 /**
  * Calculate compression ratio
  */
-export function calculateCompressionRatio(original: number, compressed: number): number {
+export function calculateCompressionRatio(
+  original: number,
+  compressed: number,
+): number {
   if (original === 0) return 0;
   return Math.round((1 - compressed / original) * 100);
 }
@@ -537,9 +437,9 @@ export function calculateCompressionRatio(original: number, compressed: number):
 /**
  * Load configuration from environment variables
  */
-export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
-  const env = process.env as EnvironmentConfig;
-
+export function loadConfigFromEnv(
+  env: EnvironmentConfig = process.env as EnvironmentConfig,
+): Partial<LogsInterceptorConfig> {
   if (!parseBool(env.LOGS_ENABLED, true)) {
     return {
       filter: {
@@ -575,19 +475,29 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
 
   const dlqType = env.LOGS_DLQ_TYPE === 'file' ? 'file' : 'memory';
   const transportType = resolveTransportType(env);
-  const transportUrl = transportType === 'otlp'
-    ? env.LOGS_URL ?? env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT ?? env.OTEL_EXPORTER_OTLP_ENDPOINT ?? ''
-    : env.LOGS_URL ?? '';
-  const otlpHeaders = transportType === 'otlp'
-    ? parseOtlpHeaders(
-      env.OTEL_EXPORTER_OTLP_LOGS_HEADERS ?? env.OTEL_EXPORTER_OTLP_HEADERS
-    )
-    : {};
+  const transportUrl =
+    transportType === 'otlp'
+      ? (env.LOGS_URL ??
+        env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT ??
+        env.OTEL_EXPORTER_OTLP_ENDPOINT ??
+        '')
+      : (env.LOGS_URL ?? '');
+  const otlpHeaders =
+    transportType === 'otlp'
+      ? parseOtlpHeaders(
+          env.OTEL_EXPORTER_OTLP_LOGS_HEADERS ?? env.OTEL_EXPORTER_OTLP_HEADERS,
+        )
+      : {};
 
   const config: Partial<LogsInterceptorConfig> = {
     transport: {
       type: transportType,
       url: transportUrl,
+      ...(transportType === 'otlp' &&
+      !env.LOGS_URL &&
+      env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+        ? { logsUrl: env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT }
+        : {}),
       tenantId: env.LOGS_TENANT ?? '',
       authToken: env.LOGS_TOKEN,
       headers: otlpHeaders,
@@ -596,12 +506,22 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
       retryDelay: parseIntRange(env.LOGS_RETRY_DELAY, 1_000, 0, 120_000),
       compression,
       compressionLevel: parseIntRange(env.LOGS_COMPRESSION_LEVEL, 6, 0, 11),
-      compressionThreshold: parseIntRange(env.LOGS_COMPRESSION_THRESHOLD, 1024, 0, Number.MAX_SAFE_INTEGER),
+      compressionThreshold: parseIntRange(
+        env.LOGS_COMPRESSION_THRESHOLD,
+        1024,
+        0,
+        Number.MAX_SAFE_INTEGER,
+      ),
       useWorkers: parseBool(env.LOGS_USE_WORKERS, false),
       maxWorkers: parseIntRange(env.LOGS_MAX_WORKERS, 2, 1, 64),
       enableConnectionPooling: parseBool(env.LOGS_CONNECTION_POOLING, true),
       maxSockets: parseIntRange(env.LOGS_MAX_SOCKETS, 10, 1, 1024),
-      workerTimeout: parseIntRange(env.LOGS_WORKER_TIMEOUT, 30_000, 1_000, 300_000),
+      workerTimeout: parseIntRange(
+        env.LOGS_WORKER_TIMEOUT,
+        30_000,
+        1_000,
+        300_000,
+      ),
     },
     appName: env.LOGS_APP_NAME ?? '',
     environment: env.LOGS_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production',
@@ -609,7 +529,12 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
     labels,
     buffer: {
       maxSize: parseIntRange(env.LOGS_BUFFER_MAX_SIZE, 100, 1, 1_000_000),
-      flushInterval: parseIntRange(env.LOGS_BUFFER_FLUSH_INTERVAL, 5_000, 1, 300_000),
+      flushInterval: parseIntRange(
+        env.LOGS_BUFFER_FLUSH_INTERVAL,
+        5_000,
+        1,
+        300_000,
+      ),
       maxMemoryMB: parseIntRange(env.LOGS_BUFFER_MAX_MEMORY_MB, 32, 1, 32_768),
       maxAge: parseIntRange(env.LOGS_BUFFER_MAX_AGE, 30_000, 100, 86_400_000),
       autoFlush: parseBool(env.LOGS_BUFFER_AUTO_FLUSH, true),
@@ -618,14 +543,39 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
       levels,
       samplingRate: parseFloatRange(env.LOGS_FILTER_SAMPLING_RATE, 1.0, 0, 1),
       sanitize: parseBool(env.LOGS_FILTER_SANITIZE, true),
-      maxMessageLength: parseIntRange(env.LOGS_FILTER_MAX_MESSAGE_LENGTH, 8192, 64, 1_000_000),
-      maxContextBytes: parseIntRange(env.LOGS_FILTER_MAX_CONTEXT_BYTES, 16_384, 256, 1_048_576),
+      maxMessageLength: parseIntRange(
+        env.LOGS_FILTER_MAX_MESSAGE_LENGTH,
+        8192,
+        64,
+        1_000_000,
+      ),
+      maxContextBytes: parseIntRange(
+        env.LOGS_FILTER_MAX_CONTEXT_BYTES,
+        16_384,
+        256,
+        1_048_576,
+      ),
     },
     circuitBreaker: {
       enabled: parseBool(env.LOGS_CIRCUIT_BREAKER_ENABLED, true),
-      failureThreshold: parseIntRange(env.LOGS_CIRCUIT_BREAKER_FAILURE_THRESHOLD, 50, 1, 100_000),
-      resetTimeout: parseIntRange(env.LOGS_CIRCUIT_BREAKER_RESET_TIMEOUT, 30_000, 1_000, 3_600_000),
-      halfOpenRequests: parseIntRange(env.LOGS_CIRCUIT_BREAKER_HALF_OPEN_REQUESTS, 3, 1, 100),
+      failureThreshold: parseIntRange(
+        env.LOGS_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+        50,
+        1,
+        100_000,
+      ),
+      resetTimeout: parseIntRange(
+        env.LOGS_CIRCUIT_BREAKER_RESET_TIMEOUT,
+        30_000,
+        1_000,
+        3_600_000,
+      ),
+      halfOpenRequests: parseIntRange(
+        env.LOGS_CIRCUIT_BREAKER_HALF_OPEN_REQUESTS,
+        3,
+        1,
+        100,
+      ),
     },
     deadLetterQueue: {
       enabled: parseBool(env.LOGS_DLQ_ENABLED, true),
@@ -636,21 +586,43 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
     },
     performance: {
       useWorkers: parseBool(env.LOGS_USE_WORKERS, false),
-      maxConcurrentFlushes: parseIntRange(env.LOGS_MAX_CONCURRENT_FLUSHES, 2, 1, 256),
-      maxPendingBatches: parseIntRange(env.LOGS_MAX_PENDING_BATCHES, 2, 1, 1024),
+      maxConcurrentFlushes: parseIntRange(
+        env.LOGS_MAX_CONCURRENT_FLUSHES,
+        2,
+        1,
+        256,
+      ),
+      maxPendingBatches: parseIntRange(
+        env.LOGS_MAX_PENDING_BATCHES,
+        2,
+        1,
+        1024,
+      ),
       maxWorkers: parseIntRange(env.LOGS_MAX_WORKERS, 2, 1, 64),
       compressionLevel: parseIntRange(env.LOGS_COMPRESSION_LEVEL, 6, 0, 11),
-      workerTimeout: parseIntRange(env.LOGS_WORKER_TIMEOUT, 30_000, 1_000, 300_000),
+      workerTimeout: parseIntRange(
+        env.LOGS_WORKER_TIMEOUT,
+        30_000,
+        1_000,
+        300_000,
+      ),
     },
     interceptConsole: parseBool(env.LOGS_INTERCEPT_CONSOLE, false),
-    preserveOriginalConsole: parseBool(env.LOGS_PRESERVE_ORIGINAL_CONSOLE, true),
+    preserveOriginalConsole: parseBool(
+      env.LOGS_PRESERVE_ORIGINAL_CONSOLE,
+      true,
+    ),
     enableMetrics: parseBool(env.LOGS_ENABLE_METRICS, true),
     enableHealthCheck: parseBool(env.LOGS_ENABLE_HEALTH_CHECK, true),
     debug: parseBool(env.LOGS_DEBUG, false),
     silentErrors: parseBool(env.LOGS_SILENT_ERRORS, false),
   };
 
-  if (!config.transport?.url && !config.transport?.tenantId && !config.appName) {
+  if (
+    !config.transport?.url &&
+    !config.transport?.tenantId &&
+    !config.appName
+  ) {
     return {};
   }
 
@@ -662,7 +634,8 @@ function resolveTransportType(env: EnvironmentConfig): 'loki' | 'otlp' {
   if (configured === 'otlp') return 'otlp';
   if (configured === 'loki') return 'loki';
 
-  return env.OTEL_LOGS_EXPORTER?.trim().toLowerCase() === 'otlp' && !env.LOGS_URL
+  return env.OTEL_LOGS_EXPORTER?.trim().toLowerCase() === 'otlp' &&
+    !env.LOGS_URL
     ? 'otlp'
     : 'loki';
 }
@@ -692,11 +665,18 @@ function parseOtlpHeaders(value: string | undefined): Record<string, string> {
  */
 export function mergeConfigs(
   userConfig: Partial<LogsInterceptorConfig>,
-  envConfig: Partial<LogsInterceptorConfig>
+  envConfig: Partial<LogsInterceptorConfig>,
 ): Partial<LogsInterceptorConfig> {
   const transport =
     envConfig.transport || userConfig.transport
-      ? ({ ...envConfig.transport, ...userConfig.transport } as TransportOptions)
+      ? ({
+          ...envConfig.transport,
+          ...userConfig.transport,
+          ...(userConfig.transport?.url &&
+          userConfig.transport.logsUrl === undefined
+            ? { logsUrl: undefined }
+            : {}),
+        } as TransportOptions)
       : undefined;
 
   const buffer =
@@ -787,9 +767,7 @@ export function extractErrorMetadata(error: Error): Record<string, unknown> {
 /**
  * Parse stack trace to extract useful information
  */
-export function parseStackTrace(
-  stack: string
-): Array<{
+export function parseStackTrace(stack: string): Array<{
   function: string;
   file: string;
   line: number;

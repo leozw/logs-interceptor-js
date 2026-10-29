@@ -10,6 +10,7 @@ import {
   sanitizeData,
   shouldSample,
 } from '../../utils';
+import { boundedSnapshot } from '../memory/BoundedSnapshot';
 
 export interface LogFilterConfig {
   readonly levels: LogLevel[];
@@ -33,7 +34,7 @@ export class LogFilter implements ILogFilter {
     // Check message patterns
     if (this.config.patterns.length > 0) {
       const shouldInclude = this.config.patterns.some((pattern) =>
-        pattern.test(entry.message)
+        (pattern.lastIndex = 0, pattern.test(entry.message.slice(0, this.config.maxMessageLength)))
       );
       if (!shouldInclude) {
         return false;
@@ -58,7 +59,9 @@ export class LogFilter implements ILogFilter {
     }
 
     // Sanitize sensitive data
-    let context = entry.context;
+    let context = entry.context
+      ? boundedSnapshot(entry.context, 8, this.config.maxContextBytes) as Record<string, unknown>
+      : undefined;
     if (this.config.sanitize && context) {
       context = sanitizeData(context, this.config.sensitivePatterns);
     }
@@ -88,6 +91,9 @@ export class LogFilter implements ILogFilter {
       ...entry,
       message,
       context,
+      labels: this.config.sanitize && entry.labels
+        ? sanitizeData(entry.labels, this.config.sensitivePatterns) as Record<string, string>
+        : boundedSnapshot(entry.labels) as Record<string, string> | undefined,
     };
   }
 

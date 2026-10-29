@@ -11,6 +11,9 @@ import {
   TransportMetrics,
 } from '../../domain/interfaces/ILogTransport';
 import { internalWarn } from '../../utils';
+import { context } from '@opentelemetry/api';
+import { suppressTracing } from '@opentelemetry/core';
+import { logExportSuppression } from './ExportSuppression';
 
 export interface ResilientTransportConfig {
   maxRetries?: number;
@@ -35,22 +38,26 @@ export class ResilientTransport implements ILogTransport {
   };
 
   private lastDlqWarningAt = 0;
+  private destroyed = false;
+  private sleepers = new Map<NodeJS.Timeout, () => void>();
 
   constructor(
     private readonly transport: ILogTransport,
     private readonly config: ResilientTransportConfig,
     private readonly circuitBreaker?: ICircuitBreaker,
-    private readonly dlq?: IDeadLetterQueue
+    private readonly dlq?: IDeadLetterQueue,
   ) {}
 
   async send(entries: LogEntry[]): Promise<void> {
+    if (this.destroyed) throw new Error('Telemetry transport closed');
     if (entries.length === 0) {
       return;
     }
 
     this.metrics.totalSends++;
 
-    const operation = async () => this.transport.send(entries);
+    const operation = async () => logExportSuppression.run(true, () =>
+      context.with(suppressTracing(context.active()), () => this.transport.send(entries)));
     const operationWithRetry = async () => this.retryOperation(operation);
 
     try {
@@ -63,7 +70,7 @@ export class ResilientTransport implements ILogTransport {
       this.metrics.successfulSends++;
     } catch (error) {
       this.metrics.failedSends++;
-      await this.enqueueToDlq(entries, error as Error);
+      if (!this.destroyed) await this.enqueueToDlq(entries, error as Error);
       throw error;
     }
   }
@@ -94,6 +101,7 @@ export class ResilientTransport implements ILogTransport {
     let requestRetried = false;
 
     for (let attempt = 0; attempt < totalAttempts; attempt++) {
+      if (this.destroyed) throw new Error('Telemetry transport closed');
       try {
         return await operation();
       } catch (error) {
@@ -107,14 +115,23 @@ export class ResilientTransport implements ILogTransport {
 
         if (!requestRetried) {
           requestRetried = true;
-          this.metrics.retriedRequests = (this.metrics.retriedRequests || 0) + 1;
+          this.metrics.retriedRequests =
+            (this.metrics.retriedRequests || 0) + 1;
         }
 
         this.metrics.retryAttempts = (this.metrics.retryAttempts || 0) + 1;
 
-        const baseDelay = delay * Math.pow(2, attempt);
+        const baseDelay = Math.min(30_000, delay * Math.pow(2, attempt));
         const jitter = Math.floor(Math.random() * 250);
-        await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            this.sleepers.delete(timer);
+            resolve();
+          }, baseDelay + jitter);
+          this.sleepers.set(timer, () =>
+            reject(new Error('Telemetry transport closed')),
+          );
+        });
       }
     }
 
@@ -201,7 +218,8 @@ export class ResilientTransport implements ILogTransport {
       retryAttempts:
         (baseMetrics.retryAttempts || 0) + (this.metrics.retryAttempts || 0),
       retriedRequests:
-        (baseMetrics.retriedRequests || 0) + (this.metrics.retriedRequests || 0),
+        (baseMetrics.retriedRequests || 0) +
+        (this.metrics.retriedRequests || 0),
       dlqDroppedEntries:
         (baseMetrics.dlqDroppedEntries || 0) +
         (this.metrics.dlqDroppedEntries || 0),
@@ -209,6 +227,12 @@ export class ResilientTransport implements ILogTransport {
   }
 
   async destroy(): Promise<void> {
+    this.destroyed = true;
+    for (const [timer, cancel] of this.sleepers) {
+      clearTimeout(timer);
+      cancel();
+    }
+    this.sleepers.clear();
     await this.transport.destroy();
   }
 }

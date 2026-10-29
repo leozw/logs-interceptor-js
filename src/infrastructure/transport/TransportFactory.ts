@@ -37,10 +37,10 @@ export class TransportFactory {
         LokiProtobufTransport: new (...args: any[]) => ILogTransport;
       };
       internalDebug('Selected LokiProtobufTransport');
-      baseTransport = new LokiProtobufTransport(transportConfig);
+      baseTransport = new LokiProtobufTransport(transportConfig, config.transport.headers);
     } else {
       internalDebug('Selected LokiJsonTransport');
-      baseTransport = new LokiJsonTransport(transportConfig);
+      baseTransport = new LokiJsonTransport(transportConfig, config.transport.headers);
     }
 
     return new ResilientTransport(

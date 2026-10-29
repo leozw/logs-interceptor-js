@@ -60,6 +60,7 @@ export class LogsInterceptorFactory {
         dlq = new FileDeadLetterQueue({
           maxSize: config.deadLetterQueue.maxSize,
           maxRetries: config.deadLetterQueue.maxRetries,
+          maxFileSizeMB: config.deadLetterQueue.maxFileSizeMB,
           basePath: config.deadLetterQueue.basePath,
         });
       } else {
@@ -97,6 +98,7 @@ export class LogsInterceptorFactory {
         enableMetrics: config.enableMetrics,
         maxConcurrentFlushes: config.performance.maxConcurrentFlushes,
         maxPendingBatches: config.performance.maxPendingBatches,
+        shutdownTimeoutMillis: config.performance.shutdownTimeoutMillis,
       }
     );
 
