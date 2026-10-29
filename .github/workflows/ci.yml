@@ -30,6 +30,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Release policy regression tests
+        run: node scripts/release-guard.test.cjs
+
       - name: Lint
         run: npm run lint
 

@@ -259,3 +259,22 @@ app.use(MorganAdapter.create('combined', interceptor));
 ## License
 
 MIT
+
+## Maintainer Release Gates
+
+The manual `.github/workflows/release.yml` accepts only `main`, an exact current
+SHA, stable version and typed package confirmation. It requires successful
+Node 22/24/26 main-push CI for that SHA, a public matching repository, a clean
+production audit and the validated archive hash. Only the final hosted publish
+job receives `NPM_TOKEN`; `id-token: write` and `--provenance` remain mandatory.
+There are no push/tag publication triggers and no provenance fallback.
+
+An authorized maintainer must configure `NPM_TOKEN` in this package's matching
+GitHub repository before dispatch. No token was read, created or changed by the
+audit, and trusted-publisher configuration is not assumed. A coordinator token
+in another repository does not establish this package's provenance. This
+workflow was prepared, not dispatched. See the [npm provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
+
+The legacy `logs-interceptor@2.1.6` is a separate identity, not an npm alias.
+Do not substitute it without translating `LOGS_INTERCEPTOR_*` configuration and
+qualifying the transport, preload and shutdown behavior against its own API.
