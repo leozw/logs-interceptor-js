@@ -23,13 +23,22 @@ legacy `logs-interceptor@2.1.6` has not been republished, renamed or silently al
 
 ## Verification
 
-Thirty-three Jest tests passed, including actual local gzip OTLP export and
+Thirty-seven Jest tests passed, including actual local gzip OTLP export and
 custom endpoint routing. Build and lint passed (test-double/console warnings
 remain warnings). Clean packed CJS/ESM/preload consumers work on Node
 18/20/22/24/26. Actual Loki JSON and protobuf exports were decoded for none,
 gzip, Brotli and Snappy, with and without real Workers. Offline, 429, trickle,
 large messages/responses, CPU/RSS samples and thread saturation were exercised.
 The clean production graph has zero npm advisories at the audit timestamp.
+
+Independent review found static labels bypassed the log filter when copied
+directly into OTLP Resource. A shared detached, bounded label policy now covers
+Resource defaults/static labels and record labels using the configured patterns
+and sanitize flag. Four regressions decode Resource and record attributes and
+scan the entire protobuf payload, including static password/email, custom
+patterns, explicit sanitize:false, frozen inputs and string-valued truncation
+sentinels. The pre-fix tests failed on 0e237960; its candidate archive is withdrawn
+from release consideration. This correction requires renewed review and CI.
 
 ## Limitations
 

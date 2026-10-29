@@ -11,6 +11,7 @@ import {
   shouldSample,
 } from '../../utils';
 import { boundedSnapshot } from '../memory/BoundedSnapshot';
+import { applyLabelPolicy } from './LabelPolicy';
 
 export interface LogFilterConfig {
   readonly levels: LogLevel[];
@@ -91,9 +92,7 @@ export class LogFilter implements ILogFilter {
       ...entry,
       message,
       context,
-      labels: this.config.sanitize && entry.labels
-        ? sanitizeData(entry.labels, this.config.sensitivePatterns) as Record<string, string>
-        : boundedSnapshot(entry.labels) as Record<string, string> | undefined,
+      labels: entry.labels ? applyLabelPolicy(entry.labels, this.config) : undefined,
     };
   }
 

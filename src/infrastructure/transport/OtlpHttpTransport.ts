@@ -5,6 +5,7 @@ import { CompressionAlgorithm } from '@opentelemetry/otlp-exporter-base';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import type { ReadableLogRecord } from '@opentelemetry/sdk-logs';
 import { boundedAgent } from './BoundedAgent';
+import { applyLabelPolicy } from '../filter/LabelPolicy';
 import { ResolvedLogsInterceptorConfig } from '../../application/config/LogsInterceptorConfig';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import {
@@ -49,12 +50,11 @@ export class OtlpHttpTransport implements ILogTransport {
       httpAgentOptions: this.agents.factory,
       userAgent: 'elven-logs-interceptor/1.1.1',
     });
-    this.resource = resourceFromAttributes({
+    this.resource = resourceFromAttributes(applyLabelPolicy(config.labels, config.filter, {
       'service.name': config.appName,
       'service.version': config.version,
       'deployment.environment.name': config.environment,
-      ...config.labels,
-    });
+    }));
   }
 
   async send(entries: LogEntry[]): Promise<void> {
