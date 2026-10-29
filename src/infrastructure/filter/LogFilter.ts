@@ -67,8 +67,14 @@ export class LogFilter implements ILogFilter {
       message = '[REDACTED]';
     }
 
+    const correlation = applyLabelPolicy(Object.fromEntries(
+      Object.entries({ traceId: entry.traceId, spanId: entry.spanId, requestId: entry.requestId })
+        .filter(([, value]) => value !== undefined),
+    ), this.config);
+
     return {
       ...entry,
+      ...correlation,
       message,
       context,
       labels: entry.labels ? applyLabelPolicy(entry.labels, this.config) : undefined,

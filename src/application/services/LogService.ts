@@ -48,6 +48,7 @@ export class LogService implements ILogger {
       environment: string;
       labels: Record<string, string>;
       dynamicLabels: Record<string, () => string | number>;
+      indexCorrelationIds?: boolean;
       enableMetrics: boolean;
     }
   ) {
@@ -160,6 +161,18 @@ export class LogService implements ILogger {
     const spanContext = trace.getActiveSpan()?.spanContext();
     const traceId = spanContext?.traceId || (dynamicLabels.trace_id as string);
     const spanId = spanContext?.spanId || (dynamicLabels.span_id as string);
+    const labels: Record<string, string> = {
+      app: this.config.appName,
+      version: this.config.version,
+      environment: this.config.environment,
+      level,
+      hostname: os.hostname(),
+      pid: String(process.pid),
+      ...this.config.labels,
+      ...(this.config.indexCorrelationIds === false
+        ? Object.fromEntries(Object.entries(dynamicLabels).filter(([key]) => !['trace_id', 'span_id', 'request_id'].includes(key)))
+        : dynamicLabels),
+    };
 
     return new LogEntryEntity(
       logId,
@@ -173,16 +186,7 @@ export class LogService implements ILogger {
       traceId,
       spanId,
       dynamicLabels.request_id,
-      {
-        app: this.config.appName,
-        version: this.config.version,
-        environment: this.config.environment,
-        level: level,
-        hostname: os.hostname(),
-        pid: String(process.pid),
-        ...this.config.labels,
-        ...Object.fromEntries(Object.entries(dynamicLabels).filter(([key]) => !['trace_id', 'span_id', 'request_id'].includes(key))),
-      },
+      labels,
       {
         memoryUsage: this.metrics.memoryUsage,
         cpuUsage: this.metrics.cpuUsage,
@@ -232,9 +236,11 @@ export class LogService implements ILogger {
 
     // Get transport metrics if available
     const transportMetrics = (this.transport as any).getMetrics?.();
+    const bufferDrops = this.buffer.getMetrics().droppedEntries ?? 0;
 
     return {
       ...this.metrics,
+      logsDropped: Math.min(Number.MAX_SAFE_INTEGER, this.metrics.logsDropped + bufferDrops),
       bufferSize: this.buffer.size(),
       latency: {
         p50: latencyMetrics.p50,

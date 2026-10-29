@@ -41,15 +41,13 @@ export = function (RED: any) {
   function LogsInterceptorNode(this: any, config: NodeRedNode & NodeRedConfig) {
     RED.nodes.createNode(this, config);
 
-    const node: any = this;
     let logger: any = null;
     let initialized = false;
 
     // Initialize logger
     try {
       // Try to load from dist (production) or src (development)
-      let logsInterceptor: any;
-      logsInterceptor = require('../../index');
+      const logsInterceptor: any = require('../../index');
       const { init } = logsInterceptor;
       
       // Get process.env safely
@@ -71,19 +69,19 @@ export = function (RED: any) {
       logger = init(loggerConfig);
       initialized = true;
 
-      node.status({ fill: 'green', shape: 'dot', text: 'connected' });
-      node.log('Logs interceptor initialized');
+      this.status({ fill: 'green', shape: 'dot', text: 'connected' });
+      this.log('Logs interceptor initialized');
     } catch (error: any) {
-      node.error(`Failed to initialize logs interceptor: ${error.message}`);
-      node.status({ fill: 'red', shape: 'ring', text: 'error' });
+      this.error(`Failed to initialize logs interceptor: ${error.message}`);
+      this.status({ fill: 'red', shape: 'ring', text: 'error' });
       initialized = false;
     }
 
     // Handle incoming messages
-    node.on('input', function (msg: NodeRedMessage) {
+    this.on('input', (msg: NodeRedMessage) => {
       if (!initialized || !logger) {
-        node.warn('Logger not initialized');
-        node.send(msg);
+        this.warn('Logger not initialized');
+        this.send(msg);
         return;
       }
 
@@ -96,8 +94,8 @@ export = function (RED: any) {
             : safeStringify(payload);
 
         const context: Record<string, unknown> = {
-          nodeId: node.id,
-          nodeName: node.name,
+          nodeId: this.id,
+          nodeName: this.name,
           topic: msg.topic,
           ...(typeof payload === 'object' && payload !== null
             ? (boundedSnapshot(payload) as Record<string, unknown>)
@@ -128,20 +126,20 @@ export = function (RED: any) {
         }
 
       } catch (error: any) {
-        node.error(`Error processing log: ${error.message}`);
+        this.error(`Error processing log: ${error.message}`);
       } finally {
-        node.send(msg);
+        this.send(msg);
       }
     });
 
     // Handle node close
-    node.on('close', async function () {
+    this.on('close', async () => {
       if (logger && typeof logger.destroy === 'function') {
         try {
           await logger.destroy();
-          node.log('Logs interceptor destroyed');
+          this.log('Logs interceptor destroyed');
         } catch (error: any) {
-          node.error(`Error destroying logger: ${error.message}`);
+          this.error(`Error destroying logger: ${error.message}`);
         }
       }
     });

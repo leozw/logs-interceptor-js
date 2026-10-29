@@ -1,4 +1,4 @@
-name: Legacy 2.1 Candidate CI
+name: Legacy 3.0 Candidate CI
 on:
   push:
     branches: [audit/legacy-2.1.7-20261029]
@@ -24,15 +24,39 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm test -- --runInBand --detectOpenHandles
-      - run: node --test tests/*.test.cjs
+      - run: npm run test:types
+      - run: npm test
+      - run: node tests/jest-port-inventory.cjs
       - run: npm audit --omit=dev
       - name: Reject stale build outputs
         run: node tests/build-clean.cjs
       - name: Pack reviewed legacy identity without publishing
         run: node tests/pack-receipt.cjs
+      - name: Fresh installed archive consumer with exact file hashes
+        run: node tests/packed-consumer.cjs
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: legacy-candidate-${{ matrix.node-version }}
-          path: release/
+          path: release/3.0.0/
           if-no-files-found: error
+  eol-compatibility:
+    name: EOL compatibility only (${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.17.0, 20.x]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.x
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: node --test tests/*.test.cjs

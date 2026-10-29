@@ -1,14 +1,65 @@
 # Logs Interceptor
 
-Review candidate: `logs-interceptor@2.1.7`, unpublished. This is not an alias for
+Optional major review candidate: `logs-interceptor@3.0.0`, unpublished. This is not an alias for
 `elven-logs-interceptor`. See [source recovery](RECOVERY.md) and
 [security changes and limitations](AUDIT-LEGACY.md). Legacy LOGS_INTERCEPTOR_*
-configuration is retained. Use maintained Node 22/24/26; Node 18/20 are EOL.
+configuration is retained. Runtime minimum is Node 18.17.0, matching undici6.29.1.
+Use maintained Node 22/24/26; Node 18/20 checks are EOL compatibility, not security support.
 
 Official [Node integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
 and [documentation source](https://github.com/elvenworks-ps/docs.elven.works).
 Do not substitute the renamed package without an explicit environment/API and
 transport migration. No release workflow for this branch has been dispatched.
+
+## Optional Migration From 2.x
+
+The public baseline is `logs-interceptor@2.1.6`. The withdrawn, unpublished
+2.1.7 review archive is historical evidence, not an upgrade recommendation.
+Applications using `^2` do not automatically receive3.0.0. This candidate remains
+on hold for fresh independent source/runtime review, registry authorization and
+matching public-source/provenance approval. No package has been published here.
+
+After an approved3.0.0 publication, upgrading requires an explicit dependency
+change to3.x and Node>=18.17.0. Applications below that floor must not upgrade;
+do not bypass engine checks. The package name, root CJS/ESM API, legacy
+`LOGS_INTERCEPTOR_*` environment, Loki JSON/protobuf transports, compression
+choices and Winston/Morgan/Node-RED entry points are not renamed or silently
+replaced by the modern `elven-logs-interceptor` package.
+
+Indexed `trace_id`, `span_id` and `request_id` selectors remain enabled by
+default, as in2.1.6. Known-sensitive values still follow the configured
+sanitization policy. To explicitly reduce correlation-label cardinality:
+
+```js
+init({
+  appName: 'my-service',
+  transport: { url: 'http://loki:3100/loki/api/v1/push', tenantId: 'my-tenant' },
+  indexCorrelationIds: false,
+});
+```
+
+The equivalent preload setting is
+`LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS=false`. In that mode, automatic/dynamic
+correlation labels are not indexed: selectors such as `{request_id="..."}` for
+those IDs stop matching. Parse the retained `requestId`, `traceId` and `spanId`
+fields populated by tracing/dynamic callbacks from the JSON log line instead.
+Explicit static labels remain configured, including any static correlation
+labels; remove those explicitly if desired. Other user-selected dynamic labels
+can still create high cardinality. This mode is opt-in, not a universal
+cardinality guarantee.
+
+Application Workers retain automatic initialization. Only SDK-owned WorkerPool
+threads suppress internal preload/auto-init; this does not change the main
+process environment. The bounded buffer intentionally evicts old entries under
+pressure. `getMetrics().logsDropped` counts those evictions plus filtered logs,
+not every possible transport/backend loss. Raw preserved console output is
+still outside exported-data sanitization.
+
+Winston completion callbacks retain their old synchronous behavior. Ordinary
+`logged` notifications remain deferred; at128 pending notifications the older
+batch is emitted synchronously to bound retention without omitting events.
+Application-provided event handlers are not sandboxed. See
+[the follow-up](AUDIT-LEGACY-FOLLOWUP.md) for qualification and remaining gates.
 
 [![npm version](https://img.shields.io/npm/v/logs-interceptor.svg)](https://www.npmjs.com/package/logs-interceptor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -26,6 +77,9 @@ transport migration. No release workflow for this branch has been dispatched.
 ---
 
 ## Installation
+
+The commands below install the currently public package, not this unpublished
+major candidate. Use an explicit3.x version only after its approved release.
 
 ```bash
 npm install logs-interceptor
@@ -71,6 +125,7 @@ CMD ["node", "app.js"]
 | `LOGS_INTERCEPTOR_MAX_MEMORY_MB` | Mem Limit (MB) | `50` |
 | `LOGS_INTERCEPTOR_USE_WORKERS` | Enable Workers | `true` |
 | `LOGS_INTERCEPTOR_MAX_WORKERS` | Worker Count | `2` |
+| `LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS` | Keep indexed trace/span/request selectors; `false` explicitly removes them | `true` |
 | `LOGS_INTERCEPTOR_CIRCUIT_BREAKER_ENABLED`| Circuit Breaker | `true` |
 | `LOGS_INTERCEPTOR_DLQ_ENABLED` | Dead Letter Queue | `false` |
 | `LOGS_INTERCEPTOR_DLQ_TYPE` | DLQ Type (`file`) | `file` |
@@ -203,17 +258,23 @@ For a complete copy-pasteable example of **EVERY** option, see [`examples/full-c
 
 ### Winston
 ```typescript
-import { WinstonTransport } from 'logs-interceptor';
+import winston from 'winston';
+import { getLogger, WinstonTransport } from 'logs-interceptor';
+// Initialize logs-interceptor once before constructing the host transport.
 const logger = winston.createLogger({
-  transports: [ new WinstonTransport() ]
+  transports: [new WinstonTransport({ logger: getLogger() })]
 });
 ```
 
 ### Morgan (HTTP)
 ```typescript
-import { MorganAdapter } from 'logs-interceptor';
-app.use(MorganAdapter.create('combined'));
+import morgan from 'morgan';
+import { getLogger, MorganAdapter } from 'logs-interceptor';
+app.use(morgan('combined', { stream: MorganAdapter.createStream(getLogger()) }));
 ```
+
+Winston and Morgan are optional application-owned integrations; install their
+host libraries in the application when using those adapters.
 
 ---
 

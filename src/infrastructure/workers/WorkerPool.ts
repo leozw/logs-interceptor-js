@@ -57,6 +57,7 @@ export class WorkerPool {
   private createWorker(): void {
     const env = { ...process.env };
     delete env.NODE_OPTIONS;
+    env.LOGS_INTERCEPTOR_INTERNAL_WORKER = 'true';
     const worker = new Worker(this.workerScript, { execArgv: [], env });
     this.workers.add(worker);
     this.availableWorkers.push(worker);

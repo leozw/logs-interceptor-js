@@ -94,6 +94,7 @@ export class LogsInterceptorFactory {
         environment: config.environment,
         labels: config.labels,
         dynamicLabels,
+        indexCorrelationIds: config.indexCorrelationIds,
         enableMetrics: config.enableMetrics,
       }
     );

@@ -7,7 +7,6 @@ import { HealthStatus, ILogger, LoggerMetrics } from './domain/interfaces/ILogge
 import { LogLevel } from './domain/value-objects/LogLevel';
 import { LogsInterceptorFactory } from './presentation/factory/LogsInterceptorFactory';
 import { loadConfigFromEnv, mergeConfigs } from './utils';
-import { isMainThread } from 'worker_threads';
 
 export * from './infrastructure/integrations';
 
@@ -85,7 +84,9 @@ export async function destroy(): Promise<void> {
  * This allows the logger to work automatically when loaded via NODE_OPTIONS
  */
 function autoInit(): void {
-  if (!isMainThread) return;
+  if (process.env.LOGS_INTERCEPTOR_INTERNAL_WORKER === 'true') return;
+  // The preload owns full configuration; do not create a transient default instance.
+  if ((globalThis as typeof globalThis & { __LOGS_INTERCEPTOR_PRELOADING?: boolean }).__LOGS_INTERCEPTOR_PRELOADING) return;
   // Only auto-initialize if we have the required environment variables
   const envConfig = loadConfigFromEnv();
 

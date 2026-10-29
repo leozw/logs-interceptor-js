@@ -23,6 +23,7 @@ export interface EnvironmentConfig {
   LOGS_INTERCEPTOR_CIRCUIT_BREAKER?: string;
   LOGS_INTERCEPTOR_SANITIZE?: string;
   LOGS_INTERCEPTOR_MAX_MEMORY_MB?: string;
+  LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS?: string;
 }
 
 export interface TransportOptions {
@@ -62,8 +63,8 @@ export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
     /\b(?:\d{4}[-\s]?){3}\d{4}\b/, // Credit card
     /\b\d{3}-\d{2}-\d{4}\b/, // SSN
     /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/, // CPF (Brazilian)
-    /Bearer\s+[A-Za-z0-9\-._~+\/=]*/i, // Bearer tokens
-    /Basic\s+[A-Za-z0-9+\/=]*/i, // Basic auth
+    /Bearer\s+[A-Za-z0-9\-._~+/=]*/i, // Bearer tokens
+    /Basic\s+[A-Za-z0-9+/=]*/i, // Basic auth
   ];
 
   for (const pattern of commonPatterns) {
@@ -233,20 +234,22 @@ export function shouldSampleAdvanced(
     case 'random':
       return Math.random() < rate;
       
-    case 'deterministic':
+    case 'deterministic': {
       // Use a hash of the key to determine sampling
       if (!key) return Math.random() < rate;
       const hash = crypto.createHash('md5').update(key).digest();
       const hashValue = hash.readUInt32BE(0) / 0xFFFFFFFF;
       return hashValue < rate;
+    }
       
-    case 'adaptive':
+    case 'adaptive': {
       // Implement adaptive sampling based on load
       // This is a simplified version - in production, you'd track actual load
       const cpuUsage = process.cpuUsage();
       const loadFactor = Math.min(1, cpuUsage.user / 1000000000); // Normalize to 0-1
       const adjustedRate = rate * (1 - loadFactor * 0.5); // Reduce sampling under load
       return Math.random() < adjustedRate;
+    }
       
     default:
       return Math.random() < rate;
@@ -278,6 +281,9 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
   const env = process.env as EnvironmentConfig;
   
   const config: any = {};
+  if (env.LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS !== undefined) {
+    config.indexCorrelationIds = env.LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS !== 'false';
+  }
   
   // Transport configuration
   if (env.LOGS_INTERCEPTOR_URL || env.LOGS_INTERCEPTOR_TENANT_ID || env.LOGS_INTERCEPTOR_AUTH_TOKEN) {

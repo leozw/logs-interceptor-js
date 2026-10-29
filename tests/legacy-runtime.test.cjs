@@ -66,7 +66,7 @@ test('legacy public API exports valid Loki none/gzip/Brotli/Snappy with and with
   try {
     for(const compression of ['none','gzip','brotli','snappy'])for(const useWorkers of [false,true])for(const count of [1,60]) {
       const requestCount=requests.length;
-      const logger=api.init({appName:'legacy-api',transport:{url:`http://127.0.0.1:${server.address().port}/loki/api/v1/push`,tenantId:'tenant',compression,useWorkers,maxWorkers:1,maxRetries:0,timeout:500},buffer:{autoFlush:false,maxSize:100},filter:{sanitize:true},dynamicLabels:{request_id:()=>String(Math.random())},enableMetrics:false});
+      const logger=api.init({appName:'legacy-api',transport:{url:`http://127.0.0.1:${server.address().port}/loki/api/v1/push`,tenantId:'tenant',compression,useWorkers,maxWorkers:1,maxRetries:0,timeout:500},buffer:{autoFlush:false,maxSize:100},filter:{sanitize:true},dynamicLabels:{request_id:()=>String(Math.random())},indexCorrelationIds:false,enableMetrics:false});
       const original={password:'private-value',data:Buffer.alloc(65536)};
       for(let i=0;i<count;i++)logger.info('legacy-plain',original);
       await logger.flush();
@@ -207,19 +207,20 @@ test('legacy Node-RED passes messages through failed logging and snapshots paylo
   } finally {api.init=original;}
 });
 
-test('legacy Winston callback follows logged event instead of building an immediate backlog', async () => {
+test('legacy Winston preserves synchronous completion and ordinary deferred logged events', async () => {
   const {WinstonTransport}=require('../dist/infrastructure/integrations/WinstonTransport');
   const transport=new WinstonTransport({logger:{info:()=>{}}});
   const events=[];
   transport.on('logged',()=>events.push('logged'));
   const done=new Promise(resolve=>transport.log({level:'info',message:'message'},()=>{events.push('callback');resolve();}));
-  assert.deepEqual(events,[]);
+  assert.deepEqual(events,['callback']);
   await done;
-  assert.deepEqual(events,['logged','callback']);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(events,['callback','logged']);
   transport.close?.();
 });
 
-test('legacy NODE_OPTIONS keeps old environment, skips Workers and preserves signal ownership', () => {
+test('legacy NODE_OPTIONS keeps application Worker auto-init and preserves signal ownership', () => {
   const {spawnSync}=require('node:child_process');
   const modulePath=require.resolve('../dist');
   const preload=require.resolve('../preload.js');
@@ -230,7 +231,7 @@ test('legacy NODE_OPTIONS keeps old environment, skips Workers and preserves sig
     worker.on('message',async active=>{console.log('lifecycle:'+api.isInitialized()+':'+active);await api.destroy();await worker.terminate();});
   `],{encoding:'utf8',env,timeout:5000});
   assert.equal(lifecycle.status,0,lifecycle.stderr);
-  assert.match(lifecycle.stdout,/lifecycle:true:false/);
+  assert.match(lifecycle.stdout,/lifecycle:true:true/);
   const normal=spawnSync(process.execPath,['-e',`require('node:http').createServer().listen(0);setTimeout(()=>process.kill(process.pid,'SIGTERM'),50);`],{env,timeout:5000});
   assert.equal(normal.signal,'SIGTERM');
   for (const method of ['on','once']) {

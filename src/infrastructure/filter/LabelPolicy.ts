@@ -26,6 +26,19 @@ export function applyLabelPolicy(
       result[key] = typeof value === 'string' ? value
         : typeof value === 'number' || typeof value === 'boolean' ? String(value)
           : '[INVALID_LABEL_VALUE]';
+      const original = combined[key];
+      const correlation = key === 'trace_id' || key === 'traceId' ? /^[0-9a-f]{32}$/i
+        : key === 'span_id' || key === 'spanId' ? /^[0-9a-f]{16}$/i : undefined;
+      // Numeric hexadecimal span IDs are not payment-card fields. Explicit rules still win.
+      if (policy.sanitize && correlation && typeof original === 'string' && correlation.test(original)) {
+        const explicitlySensitive = policy.sensitivePatterns.some(pattern => {
+          pattern.lastIndex = 0;
+          if (pattern.test(key)) return true;
+          pattern.lastIndex = 0;
+          return pattern.test(original);
+        });
+        if (!explicitlySensitive) result[key] = original;
+      }
     }
   }
   return result;

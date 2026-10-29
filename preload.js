@@ -5,7 +5,7 @@
 
 (function() {
   'use strict';
-  if (!require('worker_threads').isMainThread) return;
+  if (process.env.LOGS_INTERCEPTOR_INTERNAL_WORKER === 'true') return;
 
   // Only run if we're not already in a preload context
   if (global.__LOGS_INTERCEPTOR_PRELOADED) {
@@ -16,7 +16,10 @@
 
   try {
     // Load the main module
-    const logsInterceptor = require('./dist/index.js');
+    let logsInterceptor;
+    global.__LOGS_INTERCEPTOR_PRELOADING = true;
+    try { logsInterceptor = require('./dist/index.js'); }
+    finally { delete global.__LOGS_INTERCEPTOR_PRELOADING; }
     
     // Check for required environment variables
     const url = process.env.LOGS_INTERCEPTOR_URL;
@@ -105,6 +108,7 @@
       // Features
       interceptConsole: process.env.LOGS_INTERCEPTOR_INTERCEPT_CONSOLE !== 'false',
       preserveOriginalConsole: process.env.LOGS_INTERCEPTOR_PRESERVE_CONSOLE !== 'false',
+      indexCorrelationIds: process.env.LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS !== 'false',
       enableMetrics: process.env.LOGS_INTERCEPTOR_ENABLE_METRICS !== 'false',
       enableHealthCheck: process.env.LOGS_INTERCEPTOR_ENABLE_HEALTH_CHECK !== 'false',
       debug: debug,

@@ -96,6 +96,7 @@ export interface LogsInterceptorConfig {
   readonly environment?: string;
   readonly labels?: Record<string, string>;
   readonly dynamicLabels?: Record<string, () => string | number>;
+  readonly indexCorrelationIds?: boolean;
   readonly buffer?: BufferConfig;
   readonly filter?: FilterConfig;
   readonly circuitBreaker?: CircuitBreakerConfig;
@@ -120,6 +121,7 @@ export interface ResolvedLogsInterceptorConfig {
   readonly environment: string;
   readonly labels: Record<string, string>;
   readonly dynamicLabels: Record<string, () => string | number>;
+  readonly indexCorrelationIds?: boolean;
   readonly buffer: Required<BufferConfig>;
   readonly filter: Required<FilterConfig>;
   readonly circuitBreaker: Required<CircuitBreakerConfig>;

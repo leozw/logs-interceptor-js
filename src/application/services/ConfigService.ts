@@ -92,6 +92,7 @@ export class ConfigService {
       environment: config.environment ?? 'production',
       labels: config.labels ?? {},
       dynamicLabels: config.dynamicLabels ?? {},
+      indexCorrelationIds: config.indexCorrelationIds ?? true,
       buffer: this.resolveBuffer(config.buffer),
       filter: this.resolveFilter(config.filter),
       circuitBreaker: this.resolveCircuitBreaker(config.circuitBreaker),
