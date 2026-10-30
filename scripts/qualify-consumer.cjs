@@ -40,6 +40,7 @@ const transport=new WinstonTransport({logger:handle});logger.withContext({id:1},
   run('strict typed CJS and ESM', process.execPath, [require.resolve('typescript/bin/tsc'), '--noEmit', '--strict', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--target', 'ES2022', '--types', 'node', '--typeRoots', path.join(repo, 'node_modules/@types'), path.join(consumer, 'contract.cts'), path.join(consumer, 'contract.mts')]);
   run('production runtime', process.execPath, [path.join(__dirname, 'consumer-runtime.cjs'), consumer]);
   run('native and generic malformed UTF-16 six-site whole-wire privacy', process.execPath, [path.join(__dirname, 'native-unicode-consumer.cjs'), consumer]);
+  run('actual packed queue and native matcher backing-store ownership', process.execPath, [path.join(__dirname, 'retainer-consumer.cjs'), consumer]);
   run('Loki JSON/protobuf, all codecs and actual Workers', process.execPath, [path.join(__dirname, 'loki-consumer.cjs'), consumer]);
   run('generate synthetic TLS fixture', 'openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(fixture, 'key.pem'), '-out', path.join(fixture, 'cert.pem'), '-subj', '/CN=localhost', '-days', '1', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1']);
   fs.chmodSync(path.join(fixture, 'key.pem'), 0o600);

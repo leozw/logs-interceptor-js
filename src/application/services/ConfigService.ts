@@ -4,6 +4,7 @@
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
 import { validateMatcherPatterns } from '../../infrastructure/privacy/MatcherPolicy';
+import { configSnapshot } from '../config/ConfigSnapshot';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -261,6 +262,7 @@ export class ConfigService {
    * Resolve configuration with defaults
    */
   static resolve(config: LogsInterceptorConfig): ResolvedLogsInterceptorConfig {
+    config = configSnapshot(config);
     return {
       transport: this.resolveTransport(config.transport, config.performance),
       appName: config.appName,

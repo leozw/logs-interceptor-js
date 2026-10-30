@@ -128,6 +128,23 @@ CPU-time guarantees. Snapshot and matcher limits are separate: increasing
 Measure the actual application and export workload. Isolated matcher timings do
 not qualify whole-application overhead, nor waive any SDK performance release gate.
 
+Snapshots materialize bounded UTF-16 code units before matching and queueing,
+including already-short borrowed string views. Slicing or cloning only the map
+does not establish backing-storage ownership. Lone surrogates are preserved for
+the privacy policy to reject, not converted to U+FFFD first. Correlation identifiers
+are copied with an8192-unit limit and an explicit truncation marker for oversized
+invalid values; valid trace/span IDs and default dimensions are unchanged.
+
+The optional2.x configuration snapshot accepts at most16384 UTF-16 units per
+string,65536 total units,512 values,64 keys/items per container and depth8.
+Oversized/cyclic/accessor configuration fails with fixed
+`ELVEN_CONFIG_INPUT_BUDGET` before replacing the active logger. Transport URLs,
+headers and credentials are never silently truncated. Maps/RegExp descriptors
+are owned copies; caller objects/state stay unchanged. Dynamic-label providers
+remain administrator callbacks: their execution and deliberately retained
+closure/application graphs are not covered by queue-memory bounds. Async caller
+scope lifetime and caller-held originals are likewise not owned-queue storage.
+
 ## Quick Start
 
 ```ts
@@ -344,7 +361,8 @@ MIT
 
 Source tests use compiled TypeScript and the standard `node:test` / `node:assert`
 runner, serialized for global logger, console, environment and provider state.
-`npm test` runs the original 67 expanded cases; `npm run test:port` checks the
+`npm test` includes the original 67 expanded cases plus detachment regressions;
+`npm run test:port` checks the
 original title/assertion inventory (351 executed assertions, 144 source sites)
 and separate numeric, rejection, cross-realm and mock restoration controls.
 The limited helpers preserve the used Jest operator contracts, including

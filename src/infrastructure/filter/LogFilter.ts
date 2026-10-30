@@ -11,6 +11,7 @@ import {
   shouldSample,
 } from '../../utils';
 import { boundedSnapshot } from '../memory/BoundedSnapshot';
+import { detachedIdentifier, detachedString } from '../memory/DetachedString';
 import { applyLabelPolicy } from './LabelPolicy';
 import { MatcherPolicy, type MatcherExecution } from '../privacy/MatcherPolicy';
 
@@ -46,7 +47,7 @@ export class LogFilter implements ILogFilter {
 
     // Check message patterns
     if (this.config.patterns.length > 0) {
-      const shouldInclude = this.matcher.include(entry.message.slice(0, this.config.maxMessageLength), execution);
+      const shouldInclude = this.matcher.include(detachedString(entry.message, this.config.maxMessageLength), execution);
       if (!shouldInclude) {
         return false;
       }
@@ -66,12 +67,8 @@ export class LogFilter implements ILogFilter {
       try { return this.filter(entry, scope); } finally { scope.close(); }
     }
     // Truncate message if too long
-    let message = entry.message;
-    if (message.length > this.config.maxMessageLength) {
-      message =
-        message.substring(0, this.config.maxMessageLength) +
-        '...[truncated]';
-    }
+    let message = detachedString(entry.message, this.config.maxMessageLength);
+    if (entry.message.length > this.config.maxMessageLength) message += '...[truncated]';
 
     // Sanitize sensitive data
     let context = entry.context
@@ -106,6 +103,9 @@ export class LogFilter implements ILogFilter {
       ...entry,
       message,
       context,
+      traceId: detachedIdentifier(entry.traceId),
+      spanId: detachedIdentifier(entry.spanId),
+      requestId: detachedIdentifier(entry.requestId),
       labels: entry.labels ? applyLabelPolicy(entry.labels, this.config, {}, execution) : undefined,
     };
   }

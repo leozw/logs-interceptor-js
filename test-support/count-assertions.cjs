@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const { beforeEach, afterEach } = require('node:test');
 let active = false, count = 0;
-for (const name of ['strictEqual', 'notStrictEqual', 'deepStrictEqual', 'ok', 'throws', 'doesNotThrow', 'rejects']) {
+for (const name of ['strictEqual', 'notStrictEqual', 'deepStrictEqual', 'equal', 'notEqual', 'deepEqual', 'ok', 'throws', 'doesNotThrow', 'rejects', 'match', 'doesNotMatch']) {
   const original = assert[name];
   assert[name] = function (...args) { if (active) count++; return Reflect.apply(original, this, args); };
 }
