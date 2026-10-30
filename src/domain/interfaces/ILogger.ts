@@ -53,4 +53,5 @@ export interface HealthStatus {
   memoryUsageMB: number;
   circuitBreakerState: 'closed' | 'open' | 'half-open';
   lastError?: string;
+  readonly privacyCodes?: readonly string[];
 }

@@ -16,6 +16,7 @@ import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { LogLevelVO } from '../../domain/value-objects/LogLevel';
 import { MetricsCollector } from '../../infrastructure/metrics/MetricsCollector';
 import { boundedSnapshot } from '../../infrastructure/memory/BoundedSnapshot';
+import type { MatcherExecution } from '../../infrastructure/privacy/MatcherPolicy';
 
 export class LogService implements ILogger {
   private metrics: LoggerMetrics & {
@@ -112,17 +113,24 @@ export class LogService implements ILogger {
       return;
     }
 
-    const entry = this.createLogEntry(level, message, context);
-    const filteredEntry = this.filter.filter(entry);
-
-    if (!this.filter.shouldProcess(filteredEntry)) {
+    let execution: MatcherExecution | undefined;
+    try {
+      execution = this.filter.beginRecord?.();
+      const entry = this.createLogEntry(level, message, context);
+      const filteredEntry = this.filter.filter(entry, execution);
+      if (!this.filter.shouldProcess(filteredEntry, execution)) {
+        this.metrics.logsDropped++;
+        return;
+      }
+      this.buffer.add(filteredEntry);
+      this.metrics.logsProcessed++;
+      this.updateMetrics();
+    } catch {
       this.metrics.logsDropped++;
-      return;
+      this.metrics.errorCount++;
+    } finally {
+      try { execution?.close(); } catch { this.metrics.errorCount++; }
     }
-
-    this.buffer.add(filteredEntry);
-    this.metrics.logsProcessed++;
-    this.updateMetrics();
   }
 
   trackEvent(eventName: string, properties?: Record<string, unknown>): void {
@@ -260,10 +268,12 @@ export class LogService implements ILogger {
   getHealth(): HealthStatus {
     const bufferMetrics = this.buffer.getMetrics();
     const transportHealth = this.transport.getHealth();
+    const privacyCodes = this.filter.privacyDiagnostics?.() ?? [];
 
     return {
       healthy:
         this.metrics.errorCount < 10 &&
+        privacyCodes.length === 0 &&
         transportHealth.healthy,
       lastSuccessfulFlush: this.metrics.lastFlushTime,
       consecutiveErrors: this.metrics.errorCount,
@@ -272,6 +282,7 @@ export class LogService implements ILogger {
       memoryUsageMB: this.metrics.memoryUsage,
       circuitBreakerState: transportHealth.healthy ? 'closed' : 'open',
       lastError: transportHealth.errorMessage,
+      privacyCodes,
     };
   }
 
@@ -288,7 +299,7 @@ export class LogService implements ILogger {
       } finally {
         if (timer) clearTimeout(timer);
         this.buffer.clear();
-        await this.transport.destroy();
+        try { await this.transport.destroy(); } finally { this.filter.close?.(); }
       }
     })();
     return this.destroyPromise;

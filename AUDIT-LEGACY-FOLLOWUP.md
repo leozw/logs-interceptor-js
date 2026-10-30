@@ -1,5 +1,10 @@
 # Optional Legacy 3.0.0 Source Follow-up
 
+Historical0565fb8 qualification phase only. Its18.17 floor and passing CI do not
+qualify the revised shared-matcher candidate. The later CPU finding withdraws
+promotion of that archive. Current optional-major policy is Node>=22.0.0; see
+AUDIT-MATCHER.md and the current source/CI receipts. Old archives are untouched.
+
 2026-10-29. This is the distinct `logs-interceptor` package, not an alias for
 `elven-logs-interceptor`. Human-approved optional major policy sets the runtime
 minimum to Node18.17.0 without downgrading undici6.29.1. Existing^2 users are not

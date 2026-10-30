@@ -19,7 +19,7 @@ assert.equal(pkg.publishConfig.provenance, true);
 assert.equal(pkg.publishConfig.registry, 'https://registry.npmjs.org/');
 const [packed] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--pack-destination', scratch, '--json', '--userconfig=/dev/null', '--globalconfig=' + path.join(home, 'global.npmrc'), '--cache=' + path.join(scratch, 'cache'), '--registry=https://registry.npmjs.org/'], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH || '/usr/bin:/bin', HOME: home } }));
 const files = new Set(packed.files.map(file => file.path));
-for (const file of ['dist/index.js', 'dist/index.d.ts', 'preload.js', 'RECOVERY.md', 'AUDIT-LEGACY.md', 'AUDIT-LEGACY-FOLLOWUP.md']) assert.ok(files.has(file), file);
+for (const file of ['dist/index.js', 'dist/index.d.ts', 'preload.js', 'RECOVERY.md', 'AUDIT-LEGACY.md', 'AUDIT-LEGACY-FOLLOWUP.md', 'AUDIT-MATCHER.md', 'dist/infrastructure/privacy/matcher-core.cjs', 'dist/infrastructure/privacy/shared-core.json']) assert.ok(files.has(file), file);
 assert.ok(![...files].some(file => /(^|\/)(\.env|\.npmrc|node_modules)(\/|$)/.test(file)));
 assert.ok(![...files].some(file => /(^|\/)(__tests__|tests)(\/|$)|\.(test|spec)\.[cm]?js$/.test(file)), 'Stale test outputs in archive');
 const archive = fs.readFileSync(path.join(scratch, packed.filename));
@@ -33,6 +33,8 @@ const receipt = {
   node: process.version, filename: packed.filename,
   sha256: createHash('sha256').update(archive).digest('hex'),
   integrity: packed.integrity, files: [...files],
+  engines: pkg.engines,
+  sharedCore: JSON.parse(fs.readFileSync(path.join(root, 'src/infrastructure/privacy/shared-core.json'))),
   publication: 'HOLD; source/runtime review and npm ownership/provenance authorization remain required. No publication performed.',
 };
 const receiptFile = path.join(directory, 'receipt.json');

@@ -1,4 +1,4 @@
-name: Legacy 3.0 Candidate CI
+name: Legacy 3.0 Shared Matcher Candidate CI
 on:
   push:
     branches: [audit/legacy-2.1.7-20261029]
@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node-version }}
+          check-latest: true
       - run: npm ci
       - run: npm run lint
       - run: npm run build
@@ -40,14 +41,10 @@ jobs:
           name: legacy-candidate-${{ matrix.node-version }}
           path: release/3.0.0/
           if-no-files-found: error
-  eol-compatibility:
-    name: EOL compatibility only (${{ matrix.node-version }})
+  minimum:
+    name: Actual minimum Node22.0.0
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [18.17.0, 20.x]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -58,7 +55,15 @@ jobs:
           node-version: 26.x
       - run: npm ci
       - run: npm run build
+      - run: npm run test:types
+      - run: node tests/pack-receipt.cjs
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22.0.0
       - run: node --test tests/*.test.cjs
+      - run: node tests/packed-consumer.cjs
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: legacy-minimum-22.0.0
+          path: release/3.0.0/
+          if-no-files-found: error

@@ -21,7 +21,7 @@ test('legacy graph handling is bounded, detached, and does not invoke ordinary g
   assert.equal(clean.token, '[REDACTED]');
   assert.equal(sanitizeData({ token:'again' }, [/token/g]).token, '[REDACTED]');
   assert.equal(called, 0);
-  assert.ok(ConfigService.validate({filter:{patterns:[/^(a+)+$/]}}).some(error=>error.includes('safe regular')));
+  assert.ok(ConfigService.validate({filter:{patterns:[/secret(?=value)/]}}).some(error=>error.includes('ELVEN_MATCHER_UNSUPPORTED_PATTERN')));
 });
 
 test('legacy buffer hard count/memory limits apply even when auto flush is disabled', () => {

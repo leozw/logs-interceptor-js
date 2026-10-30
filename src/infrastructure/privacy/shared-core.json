@@ -1,0 +1,10 @@
+{
+  "repository": "leozw/logs-interceptor-js",
+  "sourceCommit": "33f98323500aa259209fb7c10f034b8579aa52b6",
+  "sourcePath": "src/infrastructure/privacy/matcher-core.cjs",
+  "sha256": "e92153c44512ba3e4bb31fa120dc2159125b549fa9be91e84266024ca8871263",
+  "wrapperSha256": "8d8f4424dff1d57690ab0739e95b5d057d7cfc2ce06f55f6a5fc6f4f2b773fc3",
+  "engine": "re2js@2.9.1",
+  "parser": "@eslint-community/regexpp@4.12.2",
+  "policy": "Exact reviewed shared core; no local safety-policy fork. Optional legacy3 Node>=22 major, next-only parent promotion."
+}

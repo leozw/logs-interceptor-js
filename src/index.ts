@@ -7,6 +7,7 @@ import { HealthStatus, ILogger, LoggerMetrics } from './domain/interfaces/ILogge
 import { LogLevel } from './domain/value-objects/LogLevel';
 import { LogsInterceptorFactory } from './presentation/factory/LogsInterceptorFactory';
 import { loadConfigFromEnv, mergeConfigs } from './utils';
+import { MatcherPolicy } from './infrastructure/privacy/MatcherPolicy';
 
 export * from './infrastructure/integrations';
 
@@ -36,7 +37,10 @@ export function init(
     mergedConfig as LogsInterceptorConfig
   );
 
-  // Destroy existing instance if it exists
+  const matcher = new MatcherPolicy(resolvedConfig.filter);
+  matcher.assertReady();
+
+  // Complete plan validation precedes retirement of the previous healthy logger.
   if (globalInstance) {
     globalInstance.destroy().catch(() => {
       // Ignore errors during cleanup
@@ -44,7 +48,14 @@ export function init(
   }
 
   // Create new instance using factory
-  const { logger } = LogsInterceptorFactory.create(resolvedConfig);
+  let logger: ILogger;
+  try { ({ logger } = LogsInterceptorFactory.create(resolvedConfig, matcher)); }
+  catch (error) { matcher.close(); throw error; }
+  const destroyOwned = logger.destroy.bind(logger);
+  logger.destroy = async () => {
+    if (globalInstance === logger) globalInstance = null;
+    await destroyOwned();
+  };
   globalInstance = logger;
 
   return logger;

@@ -3,7 +3,7 @@
  * Handles configuration loading, validation, and resolution
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
-import safeRegex from 'safe-regex2';
+import { validateMatcherPatterns } from '../../infrastructure/privacy/MatcherPolicy';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -34,8 +34,8 @@ export class ConfigService {
     }
     for (const patterns of [config.filter?.patterns, config.filter?.sensitivePatterns]) {
       if (!patterns) continue;
-      if (patterns.length > 32 || patterns.some(pattern => !(pattern instanceof RegExp) || pattern.source.length > 512 || !safeRegex(pattern))) {
-        errors.push('Log patterns must be bounded safe regular expressions (at most 32, 512 characters each)');
+      if (!validateMatcherPatterns(patterns)) {
+        errors.push('ELVEN_MATCHER_UNSUPPORTED_PATTERN');
       }
     }
 

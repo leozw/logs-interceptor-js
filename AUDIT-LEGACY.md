@@ -3,8 +3,8 @@
 Unpublished optional major for the distinct `logs-interceptor` identity.
 The historical2.1.7 archive and pre-fix independent review remain unchanged;
 they are not this new source/artifact or an accepted release. Existing^2 users
-are not automatically upgraded. The approved new minimum is Node18.17.0,
-matching undici6.29.1, with no vulnerable downgrade. Registry authorization,
+are not automatically upgraded. The revised approved minimum is Node22.0.0,
+with undici6.29.1 retained and no vulnerable downgrade. Registry authorization,
 fresh exact-head CI/artifact evidence and independent review remain gates.
 This branch must not replace modern main or be published by its main-only
 modern-package workflow. See RECOVERY.md for the 105/105 rebuilt runtime and
@@ -20,8 +20,9 @@ Backport changes:
   memory estimates; original indexed correlation selectors remain DEFAULT;
   `indexCorrelationIds:false` / LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS=false is
   an explicit lower-cardinality tradeoff, retaining IDs in JSON lines;
-- deterministic regex state, finite email matching and unsafe custom-regex
-  rejection; snapshots/sanitization bound data but are not a universal DLP;
+- reviewed shared nonbacktracking custom matching, finite certified internal
+  defaults and explicit unsupported/budget rejection; see AUDIT-MATCHER.md.
+  Snapshots/sanitization bound data but are not a universal DLP;
 - correct gzip/Brotli bytes for advertised encodings, no accidental compression
   in `none` mode, finite request/connect/response limits and no echoed responses;
 - bounded Worker backlog, clone/error/exit/timeout/destroy settlement, idle unref
@@ -48,7 +49,7 @@ buffer data and reject unsafe/over-budget configuration. Original stdout may
 contain unredacted application data when preserveOriginalConsole is enabled.
 Hostile Proxy traps/callbacks, arbitrary dynamic labels and application objects
 are not sandboxed. Node 18/20 are EOL even when smoke compatible; production
-should use maintained Node 22/24/26. Node18.17.0 is the new explicit minimum;
+should use maintained Node 22/24/26. Node22.0.0 is the revised explicit minimum;
 EOL18/20 compatibility checks do not provide security support or qualify modern
 development tools on those hosts.
 

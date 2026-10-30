@@ -42,11 +42,11 @@ const typed = spawnSync(process.execPath, [path.join(root, 'node_modules/typescr
 fs.writeFileSync(path.join(consumer, 'types.log'), typed.stdout + typed.stderr);
 assert.equal(typed.status, 0, 'Strict installed declaration contract failed; see ' + consumer);
 const tested = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...testFiles.map(file => path.join(consumer, 'tests', file))], { cwd: consumer, env, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 });
-const testLog = 'packed-tests-' + process.versions.node.split('.')[0] + '.log';
+const testLog = 'packed-tests-' + process.versions.node + '.log';
 fs.writeFileSync(path.join(directory, testLog), tested.stdout + tested.stderr);
 const tests = Number(tested.stdout.match(/# tests (\d+)/)?.[1]);
 const output = { capturedAt: new Date().toISOString(), source: receipt.source, name: receipt.name, version: receipt.version, archiveSha256: receipt.sha256, node: process.version, platform: process.platform, arch: process.arch, consumer, freshInstall: true, credentialEnvironmentForwarded: false, installedFilesByteMatched: files.length, strictInstalledDeclarationContract: typed.status === 0, tests, status: tested.status, log: testLog, publication: 'NOT_AUTHORIZED; fresh independent review, ownership and provenance gates remain' };
-fs.writeFileSync(path.join(directory, 'packed-consumer-' + process.versions.node.split('.')[0] + '.json'), JSON.stringify(output, null, 2) + '\n');
+fs.writeFileSync(path.join(directory, 'packed-consumer-' + process.versions.node + '.json'), JSON.stringify(output, null, 2) + '\n');
 console.log(JSON.stringify(output));
 assert.equal(tested.status, 0);
-assert.equal(tests, 30);
+assert.equal(tests, 37);

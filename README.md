@@ -3,8 +3,10 @@
 Optional major review candidate: `logs-interceptor@3.0.0`, unpublished. This is not an alias for
 `elven-logs-interceptor`. See [source recovery](RECOVERY.md) and
 [security changes and limitations](AUDIT-LEGACY.md). Legacy LOGS_INTERCEPTOR_*
-configuration is retained. Runtime minimum is Node 18.17.0, matching undici6.29.1.
-Use maintained Node 22/24/26; Node 18/20 checks are EOL compatibility, not security support.
+configuration is retained. Runtime minimum for this revised optional major is
+Node 22.0.0. Use currently patched maintained22/24/26 releases; exact22.0.0 is a
+compatibility-floor test, not a security recommendation. The old18.17 candidate
+is withdrawn by the CPU finding and remains immutable historical evidence.
 
 Official [Node integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
 and [documentation source](https://github.com/elvenworks-ps/docs.elven.works).
@@ -20,11 +22,44 @@ on hold for fresh independent source/runtime review, registry authorization and
 matching public-source/provenance approval. No package has been published here.
 
 After an approved3.0.0 publication, upgrading requires an explicit dependency
-change to3.x and Node>=18.17.0. Applications below that floor must not upgrade;
+change to3.x and Node>=22.0.0. Promotion is next-tag-only and parent-authorized.
+Applications below that floor must not upgrade;
 do not bypass engine checks. The package name, root CJS/ESM API, legacy
 `LOGS_INTERCEPTOR_*` environment, Loki JSON/protobuf transports, compression
 choices and Winston/Morgan/Node-RED entry points are not renamed or silently
 replaced by the modern `elven-logs-interceptor` package.
+
+### Pattern Policy Migration
+
+The source-owned matcher core is copied exactly from reviewed modern commit
+`33f98323500aa259209fb7c10f034b8579aa52b6`, not a separately invented engine.
+Only its exact14 internally owned, certified default/builtin rules use native
+matching. Other caller rules use re2js2.9.1 with an AST semantic adapter; no
+arbitrary native RegExp fallback or heuristic safety certificate is used.
+
+RegExp[] input APIs remain, but rules are declarative snapshots at initialization.
+Changing a caller array or RegExp later does not update an initialized logger;
+call init() with the new configuration. Caller lastIndex is no longer modified.
+Boolean matching starts at zero; this is not a native exec/indices/replacer API.
+
+Unsupported lookaround/backreferences, Unicode properties/v sets and other
+unsupported flag/input combinations reject startup with fixed value-free codes.
+Unsupported live input/work exhaustion masks affected privacy decisions and
+drops failed selectors, with privacyCodes visible in health. It does not export
+raw data, print the pattern or use native matching as a fallback. Explicit
+sanitize:false retains the privacy opt-out; selectors still use the safe policy.
+
+The revised limits are32 caller rules per role,256 source UTF16 units (previous
+candidate512),256 AST nodes/depth16, bounded expansion/instructions/cache,64Ki
+distinct input units/record,2048 memoized values and65536 rule calls. These can
+reject configurations or input accepted by2.x; see [matcher migration and
+gates](AUDIT-MATCHER.md). No full JavaScript-RegExp equivalence, universal CPU/RSS
+bound or whole-application overhead guarantee is claimed.
+
+Selectors keep the legacy order: they inspect the already truncated/redacted
+message. Keys use explicit sensitivity rules; values also use builtin masks.
+Valid hex trace/span IDs retain generic PAN exemption, while explicit sensitive
+rules and matcher failure still take precedence. Default indexed IDs stay on.
 
 Indexed `trace_id`, `span_id` and `request_id` selectors remain enabled by
 default, as in2.1.6. Known-sensitive values still follow the configured
