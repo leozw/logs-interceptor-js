@@ -11,7 +11,7 @@ const artifact = JSON.parse(fs.readFileSync(artifactFile)); assert.equal(artifac
 assert.equal(artifact.freshInstall, false);
 const qualification = path.dirname(fs.realpathSync(artifactFile));
 assert.equal(path.dirname(qualification), path.join(root, '.rebuild'));
-assert.ok(['legacy-detachment-qualification', 'legacy-retry-qualification', 'legacy-final-qualification', 'legacy-config-admission-qualification'].includes(path.basename(qualification)));
+assert.ok(['legacy-detachment-qualification', 'legacy-retry-qualification', 'legacy-final-qualification', 'legacy-config-admission-qualification', 'legacy-dispatch-admission-qualification'].includes(path.basename(qualification)));
 const out = path.join(qualification, 'gc');
 fs.mkdirSync(out, { recursive: true, mode: 0o700 });
 const run = fs.mkdtempSync(path.join(out, profile + '-')); fs.chmodSync(run, 0o700);

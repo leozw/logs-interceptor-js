@@ -145,13 +145,13 @@ export class LokiJsonTransport implements ILogTransport {
         headers['Content-Encoding'] = contentEncoding;
       }
 
-      const response = await this.client.request({
+      const response = await this.retryGate.dispatch(scope.deadline, scope.signal, () => this.client.request({
         path: this.endpointPath,
         method: 'POST',
         headers,
         body: compressedData,
         signal: scope.signal,
-      });
+      }));
 
       if (response.statusCode >= 300) {
         const failure = responseError(response.statusCode, response.headers, this.config.retryDelay ?? 1000);

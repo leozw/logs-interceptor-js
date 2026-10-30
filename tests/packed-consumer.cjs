@@ -50,4 +50,4 @@ const output = { capturedAt: new Date().toISOString(), source: receipt.source, n
 fs.writeFileSync(path.join(directory, 'packed-consumer-' + process.versions.node + '.json'), JSON.stringify(output, null, 2) + '\n');
 console.log(JSON.stringify(output));
 assert.equal(tested.status, 0);
-assert.equal(tests, 61);
+assert.equal(tests, 64);

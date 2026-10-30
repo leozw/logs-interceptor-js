@@ -120,6 +120,12 @@ dates are absolute UTC dates, mapped to a monotonic delay at response receipt.
 The Date header does not extend or shorten that floor. Delta-seconds are also
 supported. The parser bounds16 fields,4096 aggregate and1024 individual units.
 
+Both public codecs recheck their owned gate after asynchronous formatting or
+compression. After waiting they synchronously check current floor, abort,
+deadline and degraded state, then invoke HTTP in the same JavaScript turn.
+Already admitted requests are not recalled; there is no global mutex or shared
+operation cancellation. The normal facade still serializes its pending flush.
+
 Invalid/ambiguous/oversized input uses finite configured local backoff and a fixed
 `ELVEN_RETRY_AFTER_INVALID` diagnostic, not a permanent park. A valid positive
 floor outside safe numeric representation explicitly degrades that owned

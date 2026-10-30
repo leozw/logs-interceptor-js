@@ -8,8 +8,8 @@ const root = path.resolve(__dirname, '..');
 const evidence = path.dirname(root);
 const stage = process.argv[2] || 'source';
 assert.ok(['source', 'artifact'].includes(stage));
-const name = process.argv[3] || 'legacy-config-admission-qualification';
-assert.ok(['legacy-detachment-qualification', 'legacy-retry-qualification', 'legacy-final-qualification', 'legacy-config-admission-qualification'].includes(name));
+const name = process.argv[3] || 'legacy-dispatch-admission-qualification';
+assert.ok(['legacy-detachment-qualification', 'legacy-retry-qualification', 'legacy-final-qualification', 'legacy-config-admission-qualification', 'legacy-dispatch-admission-qualification'].includes(name));
 const out = path.join(root, '.rebuild', name);
 fs.mkdirSync(path.join(out, 'home'), { recursive: true });
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -21,7 +21,7 @@ const profiles = [
   ...[22, 24, 26].map(n => ({ name: String(n), node: path.join(frozen, `runtimes/node-${n}`) })),
 ];
 assert.equal(sha(fs.readFileSync(profiles[0].node)), '9507031f6769f2381eae353b3614bafa871c957dc6f2ae86a3af948acdf9b178');
-const report = { capturedAt: new Date().toISOString(), stage, source: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']) !== '', lockSha256: sha(fs.readFileSync(path.join(root, 'package-lock.json'))), expectedTests: 61, network: 'No registry/network/install/credential/Docker operations. Historical audits are not refreshed.', records: [], freshRegistryAndLinuxCI: 'PENDING_PARENT', independentAcceptance: 'PENDING', publication: 'HOLD' };
+const report = { capturedAt: new Date().toISOString(), stage, source: git(['rev-parse', 'HEAD']), dirty: git(['status', '--porcelain']) !== '', lockSha256: sha(fs.readFileSync(path.join(root, 'package-lock.json'))), expectedTests: 64, network: 'No registry/network/install/credential/Docker operations. Historical audits are not refreshed.', records: [], freshRegistryAndLinuxCI: 'PENDING_PARENT', independentAcceptance: 'PENDING', publication: 'HOLD' };
 function command(name, node, args, cwd) {
   const result = spawnSync(node, args, { cwd, env, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 });
   const log = stage + '-' + name + '.log';

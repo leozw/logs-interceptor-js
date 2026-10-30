@@ -51,14 +51,23 @@ controls on actual22.0.0; fixed-source, packed and four-runtime receipts are
 separate qualification evidence, not inherited proof or independent acceptance.
 
 Required promotion checks remain lint/build/types, original12-test inventory,
-all61 source and installed tests on min22/current22/24/26, original wire/Worker/
+all64 source and installed tests on min22/current22/24/26, original wire/Worker/
 Winston/API contracts, own15 GC controls per profile, prod+dev advisories, exact
 source/archive identity and fresh independent review. Keep platform/native/SDK
 coinstallation and public-relative overhead limits honest; no blanket RSS or
 zero-CVE claim is made. New archives are under `release/3.0.0/<new-source>/`.
 
-The optional low-level preparation race is still UNKNOWN/nonblocking; v2 stopped
-in preflight without a child. Its source/receipt is not rewritten or rerun.
+The optional old low-level preparation race remains UNKNOWN/nonblocking; v2
+stopped in preflight without a child. Its source/receipt is not rewritten or rerun.
 Ordinary facade simultaneous-flush reachability remains source-refuted by
 pendingFlush serialization. Neither that result nor these three conditional
 configuration fixes is a universal facade/customer P1 claim.
+
+The new source proactively adds a final same-turn gate check/request invocation
+to both public codecs using their existing owned RetryGate, without changing
+facade serialization, global concurrency or independent-operation cancellation.
+Three additional controls bring the suite to64. They run actual JSON/protobuf
+requests with deterministic scheduling through an instrumented public wait
+method, and test final abort/deadline/degraded checks. These are disclosed
+post-fix synthetic scheduling controls, not an unmocked old-race reproduction.
+Finite expiry and ordinary independent/single sends remain functional.
