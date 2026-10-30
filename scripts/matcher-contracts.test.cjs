@@ -53,6 +53,22 @@ test('default pipeline has no backend programs or DFA allocation', () => {
   call.close(); policy.close();
 });
 
+test('certified native privacy, keys and selectors reject both lone surrogate kinds without loading programs', () => {
+  const policy = new Policy({ sensitive: DEFAULTS, builtins: BUILTINS, selectors: [/token/i] });
+  for (const broken of ['\ud800', '\udc00']) for (const operation of ['privacy', 'sensitiveKey', 'include']) {
+    const call = policy.begin();
+    assert.equal(policy[operation](broken + 'ordinary-native-control', call), operation !== 'include');
+    assert.equal(call.failed, true);
+    assert.ok(call.remainingWork >= 0 && call.remainingUnits >= 0);
+    call.close();
+  }
+  assert.deepEqual(policy.toJSON().codes, [CODES.input]);
+  assert.equal(policy.toJSON().stats.engineCompiles, 0);
+  assert.equal(policy.toJSON().stats.programInstructions, 0);
+  assert.equal(policy.toJSON().stats.dfaBytes, 0);
+  policy.close();
+});
+
 test('64 compiled plans respect program and DFA cache budgets under state pressure', () => {
   const patterns = Array.from({ length: 32 }, () => /[ab]*a[ab]{10}/);
   const policy = new Policy({ sensitive: patterns, selectors: patterns });

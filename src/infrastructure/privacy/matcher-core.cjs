@@ -222,7 +222,8 @@ class Policy {
   }
   nativeGroup(plans){return plans.length&&plans.every(plan=>plan.native)?{regexp:new RegExp(plans.map(plan=>'(?:'+plan.source+')').join('|'),'i'),count:plans.length,weight:Math.max(...plans.map(plan=>plan.weight))}:null;}
   nativeDecision(group,text,call){
-    try{call.inspect(text,false);call.calls+=group.count;if(call.calls>LIMITS.ruleCallsPerRecord)call.stop(CODES.work);call.spend((text.length+1)*group.weight);return nativeTest.call(group.regexp,text);}
+    // Certified native rules still require the generic path's UTF-16 safety check.
+    try{const input=call.inspect(text);if(input.lone)call.stop(CODES.input);call.calls+=group.count;if(call.calls>LIMITS.ruleCallsPerRecord)call.stop(CODES.work);call.spend((text.length+1)*group.weight);return nativeTest.call(group.regexp,text);}
     catch(error){call.failed=true;this.emit(Object.values(CODES).includes(error?.code)?error.code:CODES.engine);return null;}
   }
   emit(code) { if(!Object.values(CODES).includes(code))code=CODES.engine;if(this.diagnostics.has(code))return;this.diagnostics.add(code);try{this.onDiagnostic(code);}catch{} }

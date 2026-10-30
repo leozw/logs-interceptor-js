@@ -75,6 +75,8 @@ These are intentional breaking boundaries, hence a separate opt-in major:
   AST-normalized JavaScript subset. No arbitrary custom rule falls back to JS
   RegExp. Only exact, fixed internal default rules use a certified native path;
   the normal default pipeline does not load RE2JS or the parser.
+  Native rules still validate malformed UTF-16 before matching, with the same
+  fail-closed behavior and record budgets as generic rules.
 - Unsupported configuration rejects `init()` with a fixed value-free code,
   before opening the pipeline or retiring an existing runtime. Diagnostics never
   include pattern source, sample text, labels or context values.
