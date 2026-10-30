@@ -13,6 +13,7 @@ import { LogLevel } from './domain/value-objects/LogLevel';
 import { ConsoleInterceptor } from './infrastructure/interceptors/ConsoleInterceptor';
 import { LogsInterceptorFactory } from './presentation/factory/LogsInterceptorFactory';
 import { MatcherPolicy } from './infrastructure/privacy/MatcherPolicy';
+import { configSnapshot } from './application/config/ConfigSnapshot';
 import {
   internalDebug,
   internalError,
@@ -35,6 +36,7 @@ let globalRuntime: RuntimeState | null = null;
  * Can be called multiple times - subsequent calls will replace active runtime
  */
 export function init(userConfig: Partial<LogsInterceptorConfig> = {}): ILogger {
+  userConfig = configSnapshot(userConfig);
   const envConfig = loadConfigFromEnv();
   const mergedConfig = mergeConfigs(userConfig, envConfig);
 
