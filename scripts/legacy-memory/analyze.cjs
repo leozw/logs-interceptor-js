@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const run = fs.realpathSync(process.argv[2]);
 const qualification = path.dirname(path.dirname(run));
 assert.equal(path.dirname(qualification), fs.realpathSync(path.join(__dirname, '../../.rebuild')));
-assert.ok(['legacy-detachment-qualification', 'legacy-retry-qualification', 'legacy-final-qualification'].includes(path.basename(qualification)));
+assert.ok(['legacy-detachment-qualification', 'legacy-retry-qualification', 'legacy-final-qualification', 'legacy-config-admission-qualification'].includes(path.basename(qualification)));
 assert.equal(path.basename(path.dirname(run)), 'gc');
 const controller = JSON.parse(fs.readFileSync(path.join(run, 'controller.json')));
 assert.equal(controller.complete, true); assert.equal(controller.inputsUnchanged, true);

@@ -1,7 +1,7 @@
 name: Legacy 3.0 Shared Matcher Candidate CI
 on:
   push:
-    branches: [audit/legacy-2.1.7-20261029]
+    branches: [audit/legacy-2.1.7-20261029, audit/legacy-3-config-admission-20261030]
   pull_request:
     branches: [audit/legacy-2.1.6-recovered-20261029]
 permissions:

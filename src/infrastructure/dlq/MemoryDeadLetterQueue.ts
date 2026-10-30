@@ -12,11 +12,16 @@ interface DLQEntry {
   retryCount?: number;
 }
 
+export function isMemoryDeadLetterQueueCapacity(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
 export class MemoryDeadLetterQueue implements IDeadLetterQueue {
   private queue: DLQEntry[] = [];
   private readonly maxSize: number;
 
   constructor(maxSize: number = 1000) {
+    if (!isMemoryDeadLetterQueueCapacity(maxSize)) throw new Error('ELVEN_LEGACY_DLQ_CAPACITY');
     this.maxSize = maxSize;
   }
 

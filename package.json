@@ -10,7 +10,8 @@
     "RECOVERY.md",
     "AUDIT-LEGACY.md",
     "AUDIT-LEGACY-FOLLOWUP.md",
-    "AUDIT-MATCHER.md"
+    "AUDIT-MATCHER.md",
+    "AUDIT-CONFIG-ADMISSION.md"
   ],
   "scripts": {
     "build": "node scripts/build.cjs",

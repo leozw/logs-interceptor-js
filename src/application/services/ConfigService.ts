@@ -5,6 +5,7 @@
 import { LogLevel } from '../../domain/value-objects/LogLevel';
 import { validateMatcherPatterns } from '../../infrastructure/privacy/MatcherPolicy';
 import { ownedConfiguration } from '../../infrastructure/memory/OwnedConfiguration';
+import { isMemoryDeadLetterQueueCapacity } from '../../infrastructure/dlq/MemoryDeadLetterQueue';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -21,6 +22,11 @@ export class ConfigService {
    */
   static validate(config: Partial<LogsInterceptorConfig>): string[] {
     const errors: string[] = [];
+    if ((config.deadLetterQueue?.type ?? 'memory') === 'memory' &&
+      config.deadLetterQueue?.maxSize !== undefined &&
+      !isMemoryDeadLetterQueueCapacity(config.deadLetterQueue.maxSize)) {
+      errors.push('ELVEN_LEGACY_DLQ_CAPACITY');
+    }
     for (const [name, value, min, max] of [
       ['timeout', config.transport?.timeout, 1, 30000],
       ['maxRetries', config.transport?.maxRetries, 0, 20],

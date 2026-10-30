@@ -17,8 +17,8 @@ export function ownedConfiguration<T>(input: T): T {
     if (--nodes < 0 || depth > LEGACY_CONFIG_LIMITS.depth) throw new Error('ELVEN_LEGACY_CONFIG_BUDGET');
     if (typeof value === 'string') return text(value);
     if (value === null || typeof value !== 'object') return value;
-    // The compiled matcher snapshots these; the logger does not retain the arrays.
-    if (value instanceof RegExp) return value;
+    // Preserve pattern identity, but still admit its enumerable descriptors.
+    const pattern = value instanceof RegExp;
     if (ancestors.has(value)) throw new Error('ELVEN_LEGACY_CONFIG_UNSUPPORTED');
     ancestors.add(value);
     const result: Record<string, unknown> | unknown[] = Array.isArray(value) ? [] : Object.create(null);
@@ -30,7 +30,7 @@ export function ownedConfiguration<T>(input: T): T {
       Object.defineProperty(result, text(key), { value: visit(descriptor.value, depth + 1), enumerable: true, writable: true, configurable: true });
     }
     ancestors.delete(value);
-    return result;
+    return pattern ? value : result;
   };
   return visit(input, 0) as T;
 }

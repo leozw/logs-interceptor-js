@@ -50,6 +50,7 @@
       console.log('[logs-interceptor] Preload: Starting initialization...');
     }
 
+    const { parseSanitizeEnv } = require('./dist/utils.js');
     // Parse additional config from environment
     const config = {
       transport: {
@@ -86,7 +87,7 @@
           process.env.LOGS_INTERCEPTOR_LOG_LEVEL.split(',').map(l => l.trim()) : 
           ['debug', 'info', 'warn', 'error', 'fatal'],
         samplingRate: Number.isFinite(parseFloat(process.env.LOGS_INTERCEPTOR_SAMPLING_RATE)) ? parseFloat(process.env.LOGS_INTERCEPTOR_SAMPLING_RATE) : 1.0,
-        sanitize: process.env.LOGS_INTERCEPTOR_SANITIZE !== 'false',
+        sanitize: parseSanitizeEnv(process.env.LOGS_INTERCEPTOR_SANITIZE),
         maxMessageLength: parseInt(process.env.LOGS_INTERCEPTOR_MAX_MESSAGE_LENGTH) || 8192
       },
       

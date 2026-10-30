@@ -86,6 +86,30 @@ keeps its old by-reference semantics until scope exit. These and application
 references are not a whole-process physical-memory guarantee. Low-level buffers
 still accept trusted LogEntry records; this does not turn them into a sandbox.
 
+Root `init()` admits the caller DTO with those same descriptor/budget checks
+before reading or merging its properties. Enumerable accessors are rejected,
+not evaluated; allowed provider functions retain identity and are not invoked
+during admission. RegExp enumerable descriptors are validated within the budget
+without replacing pattern identity. Non-DTO root inputs (null, arrays, functions
+or RegExp) reject with the fixed unsupported code. A rejected re-init leaves the
+previous healthy logger active.
+Hostile Proxy traps and caller-owned provider closures are outside this promise.
+
+For root and preload, `LOGS_INTERCEPTOR_SANITIZE` recognizes case-insensitive
+`true` and `false`; only `false` opts out. Missing, empty or unknown values,
+including whitespace-padded tokens, leave sanitation on. Explicit programmatic
+`filter.sanitize:false` still opts out. Public2.1.6's root parser could turn an
+invalid nonempty environment value into an opt-out; this optional3 migration
+fixes that pre-existing conditional risk, not a default-mode privacy failure.
+
+Memory DLQ capacity defaults to1000 and must be a positive safe integer
+(`1..Number.MAX_SAFE_INTEGER`). Root configuration and the public constructor
+reject invalid explicit capacities with fixed `ELVEN_LEGACY_DLQ_CAPACITY`
+instead of silently accepting zero, fractions, NaN or Infinity. This policy
+applies to memory DLQ counts, not the file DLQ's separate storage units. Choose
+a practical capacity: a large valid count is not a byte/RSS limit, and low-level
+trusted LogEntry references are not snapshotted by the memory DLQ.
+
 ### Retry-After And Operation Deadlines
 
 JSON/protobuf and their resilient wrapper honor a valid server Retry-After floor
