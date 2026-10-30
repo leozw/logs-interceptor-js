@@ -34,7 +34,7 @@ try {
   if (offlineAt >= 0) {
     const feed = process.argv[offlineAt + 1];
     if (!feed || !path.isAbsolute(feed) || !fs.statSync(feed).isDirectory()) throw new Error('Explicit offline dependency feed required');
-    fs.cpSync(feed, path.join(consumer, 'node_modules'), { recursive: true });
+    fs.cpSync(feed, path.join(consumer, 'node_modules'), { recursive: true, verbatimSymlinks: true });
     const installed = path.join(consumer, 'node_modules/elven-logs-interceptor');
     fs.rmSync(installed, { recursive: true, force: true }); fs.mkdirSync(installed);
     run('extract exact candidate into independent offline consumer', '/usr/bin/tar', ['-xf', archive, '--strip-components=1', '-C', installed]);
