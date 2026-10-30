@@ -17,6 +17,7 @@ import { LogLevelVO } from '../../domain/value-objects/LogLevel';
 import { MetricsCollector } from '../../infrastructure/metrics/MetricsCollector';
 import { boundedSnapshot } from '../../infrastructure/memory/BoundedSnapshot';
 import type { MatcherExecution } from '../../infrastructure/privacy/MatcherPolicy';
+import { ownedConfiguration } from '../../infrastructure/memory/OwnedConfiguration';
 
 export class LogService implements ILogger {
   private metrics: LoggerMetrics & {
@@ -53,6 +54,7 @@ export class LogService implements ILogger {
       enableMetrics: boolean;
     }
   ) {
+    this.config = ownedConfiguration(config);
     this.startTime = Date.now();
     this.metrics = this.initializeMetrics();
     this.metricsCollector = new MetricsCollector();

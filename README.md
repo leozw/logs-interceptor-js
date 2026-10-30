@@ -31,11 +31,11 @@ replaced by the modern `elven-logs-interceptor` package.
 
 ### Pattern Policy Migration
 
-The source-owned matcher core is copied exactly from reviewed modern commit
-`0d04a335d23ed7a18057a206503d4e8aa3ca53c1`, not a separately invented engine.
-This parent-authorized UTF16 correction is intermediate: final tuple and fresh
-independent review remain mandatory. The prior33 core is rejected; its archive
-and all historical evidence remain immutable.
+The source-owned matcher core is copied exactly from the sealed modern export
+`5bab9d02db635b0c1337c73e6a913e77689112a6`, not a separately invented engine.
+The parent authorized integration, not independent acceptance or release. Own
+legacy artifact/runtime/retention review remains mandatory. Prior cores and
+archives, including9369f9c/5f1480cd, remain immutable rejected evidence.
 Only its exact14 internally owned, certified default/builtin rules use native
 matching. Other caller rules use re2js2.9.1 with an AST semantic adapter; no
 arbitrary native RegExp fallback or heuristic safety certificate is used.
@@ -63,6 +63,28 @@ Selectors keep the legacy order: they inspect the already truncated/redacted
 message. Keys use explicit sensitivity rules; values also use builtin masks.
 Valid hex trace/span IDs retain generic PAN exemption, while explicit sensitive
 rules and matcher failure still take precedence. Default indexed IDs stay on.
+
+### String Ownership And Configuration
+
+Queued snapshots, messages, IDs and label keys/values own their bounded UTF16
+code units, including short views of larger strings and sanitize:false. Existing
+message default8192/configurable1..65536 units and context/label snapshot limits
+are unchanged. No modern512 payload cap or8192 identifier cap is substituted.
+If correlation snapshot exhaustion omits an ID, its original unfiltered value
+is not restored: the existing field becomes `[REDACTED]`.
+
+Persistent plain configuration is snapshotted, including keys, identities and
+transport strings. The explicit optional3 configuration budget is1,048,576
+UTF16 units across keys/values,500 visited values,500 enumerated keys and depth8,
+checked both before and after defaults, before retiring the previous logger.
+Over-budget configuration rejects with `ELVEN_LEGACY_CONFIG_BUDGET`; cycles and
+enumerable accessors reject with `ELVEN_LEGACY_CONFIG_UNSUPPORTED`, without
+calling getters or printing input. Values above512 are supported within that
+aggregate budget. Configuration mutation requires re-init. Provider functions
+retain identity and caller-owned closures; active AsyncLocalStorage context
+keeps its old by-reference semantics until scope exit. These and application
+references are not a whole-process physical-memory guarantee. Low-level buffers
+still accept trusted LogEntry records; this does not turn them into a sandbox.
 
 Indexed `trace_id`, `span_id` and `request_id` selectors remain enabled by
 default, as in2.1.6. Known-sensitive values still follow the configured

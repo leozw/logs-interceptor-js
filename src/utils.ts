@@ -6,6 +6,7 @@ export function internalWarn(message: string, _context?: unknown): void {
 import * as crypto from 'crypto';
 import { LogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
 import { MatcherPolicy, type MatcherExecution } from './infrastructure/privacy/MatcherPolicy';
+import { detachedString } from './infrastructure/memory/DetachedString';
 
 export interface EnvironmentConfig {
   LOGS_INTERCEPTOR_URL?: string;
@@ -108,8 +109,8 @@ export function sanitizeData(
       if (typeof nestedValue === 'string') {
         const limitedValue =
           nestedValue.length > 4096
-            ? `${nestedValue.slice(0, 4096)}...[truncated]`
-            : nestedValue;
+            ? `${detachedString(nestedValue, 4096)}...[truncated]`
+            : detachedString(nestedValue, nestedValue.length);
         sanitized[key] = detectSensitiveData(limitedValue, sensitivePatterns, execution)
           ? '[REDACTED]'
           : limitedValue;
@@ -121,8 +122,8 @@ export function sanitizeData(
           if (typeof item === 'string') {
             const limitedItem =
               item.length > 4096
-                ? `${item.slice(0, 4096)}...[truncated]`
-                : item;
+                ? `${detachedString(item, 4096)}...[truncated]`
+                : detachedString(item, item.length);
             return detectSensitiveData(limitedItem, sensitivePatterns, execution)
               ? '[REDACTED]'
               : limitedItem;

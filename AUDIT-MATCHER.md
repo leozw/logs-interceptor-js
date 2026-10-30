@@ -9,16 +9,21 @@ engine graph. Exact minimum and current artifact tests are separate gates.
 
 ## Source Identity And Safety Boundary
 
-The portable core and unchanged typed policy wrapper originate at intermediate
-modern commit 0d04a335d23ed7a18057a206503d4e8aa3ca53c1. The core is an exact byte copy, SHA256
-a718349bd757cc16fb37e3ccd4f38732e627bcd0c6dfa78fde89890157e23afe.
-The parent authorized copying this UTF16 correction, not promotion. Final tuple
-and fresh independent review remain mandatory. Prior33/e921 core and local49cd/
+The portable core and unchanged typed policy wrapper originate at sealed
+modern commit5bab9d02db635b0c1337c73e6a913e77689112a6. The core is an exact byte copy, SHA256
+6cf326f3d00a2727435cfe32044443895a369aa55e290ae98c8cad97a7d72f91.
+The parent authorized integration, not modern/legacy independent acceptance or
+promotion. Own final tuple and fresh independent review remain mandatory. Prior33/e921 core and local49cd/
 97877f8b archive are rejected by the default-native lone-surrogate finding;
 their green37 results do not waive it. Historical bytes remain immutable.
 src/infrastructure/privacy/shared-core.json records origin and dependencies.
 Safety-policy changes must be shared/reviewed, not independently forked here.
 Build copies the .cjs and origin manifest into the actual package.
+The sealed DetachedString.ts primitive is byte-identicalc7e55d7c; legacy uses
+detachedString only, not its modern8192 identifier convenience. Inputs are owned
+before native matching, generic matching and memoization; pattern sources and
+replacement templates are owned too. Existing9369/a718/5f1480cd is historical
+HOLD for own measured sliced-string retention, not an accepted release.
 
 Custom predicates use re2js2.9.1 and @eslint-community/regexpp4.12.2 AST
 normalization. Only exact14 internally owned certified default/builtin rules
@@ -93,7 +98,16 @@ An additional native case guards exact numeric-only comparisons and the original
 rejected-toThrow Error/callback semantics, including coercion negatives and
 cross-realm errors. The AST ledger also maps operators, not only counts. Original
 clearAllMocks had no declared mocks/spies in this twelve-case suite; that does
-not establish parity for the modern mock-heavy suite. Active suite total is 39.
+not establish parity for the modern mock-heavy suite. Active suite total is 46.
+
+Seven own detachment/configuration cases add UTF16 code-unit/prefix controls,
+snapshot keys/arrays/getters/cycles, provider identity and values above512,
+exact configuration units/nodes/depth boundaries, atomic rejection before and
+after defaults, existing configurable message limits/default dimensions/IDs,
+and no resurrection of unfiltered correlation fields after bounded omission.
+Actual GC/heap/wire matrices remain separately hash-bound evidence, not assertions
+that string equality alone proves physical detachment. Caller/provider/active
+ALS references and trusted low-level raw-buffer use remain explicit exclusions.
 
 Eight matcher cases add exact core identity, actual custom backend calls,
 owned child watchdogs for original64a and engine-reaching near-miss inputs on

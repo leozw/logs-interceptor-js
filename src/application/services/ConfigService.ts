@@ -4,6 +4,7 @@
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
 import { validateMatcherPatterns } from '../../infrastructure/privacy/MatcherPolicy';
+import { ownedConfiguration } from '../../infrastructure/memory/OwnedConfiguration';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -85,7 +86,8 @@ export class ConfigService {
    * Resolve configuration with defaults
    */
   static resolve(config: LogsInterceptorConfig): ResolvedLogsInterceptorConfig {
-    return {
+    config = ownedConfiguration(config);
+    return ownedConfiguration({
       transport: this.resolveTransport(config.transport),
       appName: config.appName,
       version: config.version ?? '1.0.0',
@@ -105,7 +107,7 @@ export class ConfigService {
       preserveOriginalConsole: config.preserveOriginalConsole ?? true,
       debug: config.debug ?? false,
       silentErrors: config.silentErrors ?? false,
-    };
+    });
   }
 
   private static resolveTransport(

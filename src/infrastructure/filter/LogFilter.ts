@@ -8,6 +8,8 @@ import { sanitizeData, detectSensitiveData, shouldSample } from '../../utils';
 import { boundedSnapshot } from '../memory/BoundedSnapshot';
 import { applyLabelPolicy } from './LabelPolicy';
 import { MatcherPolicy, type MatcherExecution } from '../privacy/MatcherPolicy';
+import { detachedString } from '../memory/DetachedString';
+import { ownedConfiguration } from '../memory/OwnedConfiguration';
 
 export interface LogFilterConfig {
   readonly levels: LogLevel[];
@@ -21,10 +23,12 @@ export interface LogFilterConfig {
 export class LogFilter implements ILogFilter {
   private readonly matcher: MatcherPolicy;
   private readonly hasSelectors: boolean;
-  constructor(private readonly config: LogFilterConfig, matcher?: MatcherPolicy) {
+  private readonly config: LogFilterConfig;
+  constructor(config: LogFilterConfig, matcher?: MatcherPolicy) {
     this.hasSelectors = config.patterns.length > 0;
     this.matcher = matcher ?? new MatcherPolicy(config);
     this.matcher.assertReady();
+    this.config = ownedConfiguration({ ...config, patterns: [], sensitivePatterns: [] });
   }
   beginRecord(): MatcherExecution { return this.matcher.begin(); }
   privacyDiagnostics(): readonly string[] { return this.matcher.diagnostics(); }
@@ -62,11 +66,10 @@ export class LogFilter implements ILogFilter {
       try { return this.filter(entry, scope); } finally { scope.close(); }
     }
     // Truncate message if too long
-    let message = entry.message;
-    if (message.length > this.config.maxMessageLength) {
-      message =
-        message.substring(0, this.config.maxMessageLength) +
-        '...[truncated]';
+    let message = typeof entry.message === 'string'
+      ? detachedString(entry.message, this.config.maxMessageLength) : entry.message;
+    if (entry.message.length > this.config.maxMessageLength) {
+      message += '...[truncated]';
     }
 
     // Sanitize sensitive data
@@ -90,6 +93,9 @@ export class LogFilter implements ILogFilter {
     return {
       ...entry,
       ...correlation,
+      traceId: entry.traceId === undefined ? undefined : correlation.traceId ?? '[REDACTED]',
+      spanId: entry.spanId === undefined ? undefined : correlation.spanId ?? '[REDACTED]',
+      requestId: entry.requestId === undefined ? undefined : correlation.requestId ?? '[REDACTED]',
       message,
       context,
       labels: entry.labels ? applyLabelPolicy(entry.labels, this.config, {}, execution) : undefined,

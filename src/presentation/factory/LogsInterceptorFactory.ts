@@ -15,12 +15,14 @@ import { LogFilter } from '../../infrastructure/filter/LogFilter';
 import { ConsoleInterceptor } from '../../infrastructure/interceptors/ConsoleInterceptor';
 import { TransportFactory } from '../../infrastructure/transport/TransportFactory';
 import { MatcherPolicy } from '../../infrastructure/privacy/MatcherPolicy';
+import { ownedConfiguration } from '../../infrastructure/memory/OwnedConfiguration';
 
 export class LogsInterceptorFactory {
   static create(config: ResolvedLogsInterceptorConfig, preparedMatcher?: MatcherPolicy): {
     logger: ILogger;
     consoleInterceptor?: ConsoleInterceptor;
   } {
+    config = ownedConfiguration(config);
     const matcher = preparedMatcher ?? new MatcherPolicy(config.filter);
     matcher.assertReady();
     const filter = new LogFilter(config.filter, matcher);

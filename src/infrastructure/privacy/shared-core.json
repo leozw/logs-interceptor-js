@@ -1,10 +1,11 @@
 {
   "repository": "leozw/logs-interceptor-js",
-  "sourceCommit": "0d04a335d23ed7a18057a206503d4e8aa3ca53c1",
+  "sourceCommit": "5bab9d02db635b0c1337c73e6a913e77689112a6",
   "sourcePath": "src/infrastructure/privacy/matcher-core.cjs",
-  "sha256": "a718349bd757cc16fb37e3ccd4f38732e627bcd0c6dfa78fde89890157e23afe",
+  "sha256": "6cf326f3d00a2727435cfe32044443895a369aa55e290ae98c8cad97a7d72f91",
   "wrapperSha256": "8d8f4424dff1d57690ab0739e95b5d057d7cfc2ce06f55f6a5fc6f4f2b773fc3",
   "engine": "re2js@2.9.1",
   "parser": "@eslint-community/regexpp@4.12.2",
-  "policy": "Exact parent-authorized intermediate UTF16 correction; final tuple and independent review PENDING. No local safety-policy fork. Optional legacy3 Node>=22 major, next-only parent promotion."
+  "detachedStringSha256": "c7e55d7cea0eb6966e2ec282ec8b6cf6111de53c3975c2c199b46cbff4c2bee0",
+  "policy": "Exact sealed logger-5bab9d0 helper export, parent-authorized integration only; modern and legacy independent acceptance PENDING. No local matcher fork. Legacy does not use modern detachedIdentifier8192; existing message/snapshot limits and default correlation selectors retained. Optional legacy3 Node>=22 major, next-only parent promotion."
 }

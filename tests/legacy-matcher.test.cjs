@@ -90,8 +90,8 @@ if (process.argv[2] === '--matcher-child') {
     const origin = require('../dist/infrastructure/privacy/shared-core.json');
     const bytes = fs.readFileSync(require.resolve('../dist/infrastructure/privacy/matcher-core.cjs'));
     assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), origin.sha256);
-    assert.equal(origin.sourceCommit, '0d04a335d23ed7a18057a206503d4e8aa3ca53c1');
-    assert.equal(origin.sha256, 'a718349bd757cc16fb37e3ccd4f38732e627bcd0c6dfa78fde89890157e23afe');
+    assert.equal(origin.sourceCommit, '5bab9d02db635b0c1337c73e6a913e77689112a6');
+    assert.equal(origin.sha256, '6cf326f3d00a2727435cfe32044443895a369aa55e290ae98c8cad97a7d72f91');
     const pattern = /(a|aa)+b/;
     pattern.test = pattern.exec = () => { throw new Error('Caller native method invoked'); };
     const policy = new core.Policy({ sensitive: [pattern] }); const call = policy.begin();

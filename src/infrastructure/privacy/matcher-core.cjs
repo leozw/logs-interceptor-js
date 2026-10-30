@@ -61,10 +61,11 @@ function characters(ranges) {
 
 function normalize(pattern) {
   if (!(pattern instanceof RegExp) || pattern.source.length>LIMITS.sourceUnits) fail(CODES.budget);
-  const certified=CERTIFIED.find(rule=>rule.source===pattern.source&&rule.flags===pattern.flags);
+  const source=Buffer.from(pattern.source,'utf16le').toString('utf16le');
+  const certified=CERTIFIED.find(rule=>rule.source===source&&rule.flags===pattern.flags);
   if(certified)return {source:certified.source,native:new RegExp(certified.source,certified.flags),weight:certified===BUILTINS[0]?256:16,cost:1,empty:false,required:[],captures:0,names:[],flags:0};
   if (pattern.unicodeSets || pattern.flags.includes('v')) fail(CODES.syntax);
-  const ast = getParser().parsePattern(pattern.source,0,pattern.source.length,{unicode:pattern.unicode});
+  const ast = getParser().parsePattern(source,0,source.length,{unicode:pattern.unicode});
   const meta = { unicode:pattern.unicode, global:pattern.global, sticky:pattern.sticky,
     multilineAnchors:false, codeUnitSensitive:false, repeatedCaptures:false, captures:0, nodes:0, names:[] };
   const max = pattern.unicode?0x10ffff:0xffff;
@@ -164,6 +165,8 @@ class Call {
     if(!result){
       if(this.inputs.size>=LIMITS.valuesPerRecord||text.length>this.remainingUnits)this.stop(CODES.work);
       this.remainingUnits-=text.length;this.spend(text.length+1);
+      // Copy code units before either backend can retain a native last-subject/input root.
+      text=Buffer.from(text,'utf16le').toString('utf16le');
       result={text,surrogate:false,lone:false,extraLine:false,analyzed:false};this.inputs.set(text,result);
     }
     if(!analyze||result.analyzed)return result;
@@ -223,7 +226,7 @@ class Policy {
   nativeGroup(plans){return plans.length&&plans.every(plan=>plan.native)?{regexp:new RegExp(plans.map(plan=>'(?:'+plan.source+')').join('|'),'i'),count:plans.length,weight:Math.max(...plans.map(plan=>plan.weight))}:null;}
   nativeDecision(group,text,call){
     // Certified native rules still require the generic path's UTF-16 safety check.
-    try{const input=call.inspect(text);if(input.lone)call.stop(CODES.input);call.calls+=group.count;if(call.calls>LIMITS.ruleCallsPerRecord)call.stop(CODES.work);call.spend((text.length+1)*group.weight);return nativeTest.call(group.regexp,text);}
+    try{const input=call.inspect(text);if(input.lone)call.stop(CODES.input);call.calls+=group.count;if(call.calls>LIMITS.ruleCallsPerRecord)call.stop(CODES.work);call.spend((text.length+1)*group.weight);return nativeTest.call(group.regexp,input.text);}
     catch(error){call.failed=true;this.emit(Object.values(CODES).includes(error?.code)?error.code:CODES.engine);return null;}
   }
   emit(code) { if(!Object.values(CODES).includes(code))code=CODES.engine;if(this.diagnostics.has(code))return;this.diagnostics.add(code);try{this.onDiagnostic(code);}catch{} }
@@ -237,7 +240,7 @@ class Policy {
     try {
       const plan=this.roles[role][index];if(!plan)fail(CODES.engine);
       if(plan.native){const decision=this.nativeDecision({regexp:plan.native,count:1,weight:plan.weight},text,call);return decision===null?fallback:decision;}
-      call.compatible(plan,text);if(++call.calls>LIMITS.ruleCallsPerRecord)call.stop(CODES.work);
+      text=call.compatible(plan,text).text;if(++call.calls>LIMITS.ruleCallsPerRecord)call.stop(CODES.work);
       for(const item of plan.required){call.spend((text.length+1)*item.chars.length);if(!item.chars.some(ch=>text.indexOf(ch)>=0)){call.prefilterMisses++;return false;}}
       call.spend((text.length+1)*plan.executionInstructions);
       call.engineCalls++;
@@ -264,7 +267,8 @@ class Policy {
     try {
       const plan=this.roles.sensitive[index];if(!plan||plan.native||plan.sticky||plan.repeatedCaptures||typeof replacement!=='string')fail(CODES.replace);
       if(replacement.length>LIMITS.replacementUnits)fail(CODES.output);
-      call.compatible(plan,text);
+      text=call.compatible(plan,text).text;
+      replacement=Buffer.from(replacement,'utf16le').toString('utf16le');
       const matcher=plan.capture.matcher(text);const chunks=[];let units=0,previous=0,matches=0;
       function append(part){if(units+part.length>LIMITS.outputUnits)fail(CODES.output);units+=part.length;chunks.push(part);call.spend(part.length+1);}
       function slice(from,to){if(units+to-from>LIMITS.outputUnits)fail(CODES.output);append(text.slice(from,to));}
