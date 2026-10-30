@@ -1,16 +1,20 @@
 # Elven Logs Interceptor
 
-Candidate `1.1.1`; publication is coordinated separately.
+Optional major candidate `2.0.0`, UNPUBLISHED. Promotion is coordinated separately
+and is restricted to the `next` dist-tag, not `latest`. Published `1.1.1` remains
+immutable; its accepted custom RegExp configuration can block the event loop.
 Official [Node.js integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
 and [documentation source](https://github.com/elvenworks-ps/docs.elven.works).
 
 ## Compatibility And Limits
 
-The production compatibility floor is `^18.19.0 || >=20.6.0`, matching the OTel
-`2.12.x` / `0.223.x` generation. Node 18/20 are EOL, not maintained deployment
-targets. Prefer patched Node 22/24/26; see [Node releases](https://nodejs.org/en/about/previous-releases).
-OTel 3.x requires a separate major migration. CJS and native ESM imports are
-supported; the package itself remains CommonJS.
+This optional major requires Node `>=22.0.0`. The actual 22.0.0 binary has passed
+the production tarball consumer, real HTTP OTLP export, Winston callbacks,
+restart, preload, fork and Worker checks; newer 22.x alone is not minimum proof.
+Use a current security-patched Node 22/24/26 in production, not the historical
+minimum binary. Node 18/20 are EOL; see [Node releases](https://nodejs.org/en/about/previous-releases).
+The OTel generation remains `2.12.x` / `0.223.x`, not 3.x. CJS and native ESM
+imports remain supported; the package itself remains CommonJS.
 
 `logs-interceptor@2.1.6` is a separate legacy npm identity, not an alias silently
 redirected by this package. Audit its API/config and migrate explicitly; the
@@ -22,9 +26,8 @@ text budget; Buffer/typed-array payloads become size summaries. Console capture
 limits 32 arguments and 8192 characters; original console output, when enabled,
 still receives the original arguments and is NOT sanitized by this library.
 Disable preservation or sanitize at the application source for stdout privacy.
-Custom regexes are conservatively checked with safe-regex2, capped to 32 patterns
-and 256 source characters each. This heuristic is not a proof of linear time;
-only trusted configuration belongs here. Built-in email scanning is bounded.
+Custom matchers use the bounded nonbacktracking adapter described below, not
+safe-regex heuristics or a timeout around JavaScript RegExp.
 
 Buffer memory accounting includes nested payloads but is an estimate, not a
 process RSS limit. Defaults retain 100 entries, 2 active and 2 queued batches;
@@ -35,6 +38,10 @@ whole-request deadline and a 64 KiB response budget. Export operations suppress
 tracing to avoid tracing their own HTTP requests. Correlation IDs remain log
 fields instead of automatically creating one Loki stream per request. Custom
 dynamic labels still require a low-cardinality value set.
+`transport.maxRetries`/`retryDelay` control Loki retries. OTLP uses the upstream
+exporter's own bounded retry policy within its export deadline, not those Loki
+settings; the 429 consumer control observes up to six attempts including the
+initial request even when the Elven `maxRetries` value is zero.
 
 Idle timers and Workers do not pin process exit. Manual drain defaults to a
 10-second deadline (`performance.shutdownTimeoutMillis`, maximum 60 seconds),
@@ -51,8 +58,73 @@ High-performance log interceptor for Node.js with Loki and OTLP collector transp
 ## Installation
 
 ```bash
-npm install elven-logs-interceptor
+# After separate approval and publication to next; not available yet:
+npm install elven-logs-interceptor@next
 ```
+
+Do not change a production dependency from `1.x` until its runtime and custom
+matcher configuration have passed the major migration checks below.
+
+## Major 2 Privacy Migration
+
+The public logging, lifecycle, integrations and configuration names are retained.
+These are intentional breaking boundaries, hence a separate opt-in major:
+
+- Node 18/20 are excluded; the package floor is now 22.0.0.
+- Custom rules use pinned [RE2JS 2.9.1](https://github.com/le0pard/re2js), with an
+  AST-normalized JavaScript subset. No arbitrary custom rule falls back to JS
+  RegExp. Only exact, fixed internal default rules use a certified native path;
+  the normal default pipeline does not load RE2JS or the parser.
+- Unsupported configuration rejects `init()` with a fixed value-free code,
+  before opening the pipeline or retiring an existing runtime. Diagnostics never
+  include pattern source, sample text, labels or context values.
+- Unsupported live input or an exhausted record budget masks the affected and
+  subsequent privacy values and drops selectors when necessary. Business logging
+  does not throw; `getHealth().privacyDiagnostics` exposes fixed codes and marks
+  health degraded. There is no raw-data failure fallback.
+- `sanitize: false` remains an explicit privacy opt-out, not a recovery mechanism.
+  Selectors are still checked. A supplied `sensitivePatterns` list replaces the
+  default key rules, as before; built-in value detectors still apply when enabled.
+- Matching continues to mask whole sensitive values, not rewrite fragments.
+  Schema keys remain schema keys; never put personal data or credentials in keys,
+  attribute names, destinations, or correlation identifiers.
+
+Supported controls include ordinary ASCII case folding, JavaScript whitespace
+(including NBSP and BOM), Unicode literals, `u` code-point matching, dot/`s`,
+LF multiline anchors, and deterministic boolean `g`/`y` matching without mutating
+the caller's `lastIndex`. The `d` flag has no observable indices in this boolean
+API. Normal captured and named static replacements are tested in the portable
+adapter, but no public replacement callback API is added.
+
+Explicit exclusions: lookahead/lookbehind, backreferences, Unicode property
+escapes, `v` sets, non-ASCII case folding outside the documented ASCII/Kelvin/long-s
+subset, and `iu` word boundaries. Live lone surrogates, non-`u` broad/empty atoms
+on astral text, and multiline anchors on CR/LS/PS fail closed. Internal replacement
+callbacks, sticky replacement, repeated captures and fixed-native-plan replacement
+are rejected. Check every custom rule before migration; do not cast around a
+rejection or disable sanitization to claim compatibility.
+
+One shared policy covers message selectors, messages, context keys/values,
+dynamic/static record labels and OTLP Resource labels. Record scopes share work
+and input budgets, and are cleared after each event; destroy closes the policy.
+
+| Budget | Limit |
+| --- | --- |
+| Custom rules | 32 per role; 256 source UTF-16 units each |
+| AST | 256 nodes, depth 16, 16 captures per rule |
+| Expanded cost | 1024 per rule; 4096 total |
+| Normalized source | 8192 units per rule; 32768 total |
+| Combined matcher programs | 4096 instructions per rule; 32768 total |
+| DFA cache | 65536 accounted bytes per custom rule; at most 4587520 total |
+| Record input | 65536 UTF-16 units per value and distinct record strings; 2048 values |
+| Record work | 65536 rule calls; 33554432 weighted work units |
+| Internal replacement | 128 matches, 1024 replacement units, 65536 output units |
+
+Compile, cache and work budgets are engineering limits, not hard process RSS or
+CPU-time guarantees. Snapshot and matcher limits are separate: increasing
+`maxMessageLength`/`maxContextBytes` does not increase the privacy work envelope.
+Measure the actual application and export workload. Isolated matcher timings do
+not qualify whole-application overhead, nor waive any SDK performance release gate.
 
 ## Quick Start
 
@@ -105,6 +177,11 @@ are not required in this mode.
 `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` is an exact endpoint and is not suffixed.
 In code, set `transport.logsUrl` for an exact custom gateway path; `transport.url`
 continues to mean the collector base URL.
+The upstream OTLP exporter merges ambient OTLP headers with explicit headers;
+changing the destination alone does not clear inherited credentials. Configure
+destination/header ownership at application startup; this library does not mutate
+global environment variables. HTTP(S) collector/gateway URLs are supported;
+`HTTP_PROXY`/`HTTPS_PROXY` are not a forward-proxy configuration API here.
 
 ## Environment Variables (Official)
 
@@ -254,7 +331,8 @@ app.use(MorganAdapter.create('combined', interceptor));
 - DLQ with bounded size and `drop-oldest` policy
 - Bounded pending flush queue with `drop-oldest` backpressure
 - Bounded serialized context and worker task queues
-- Non-blocking behavior for application code paths
+- Application logging does not await network I/O; bounded synchronous snapshot
+  and redaction work still consumes CPU
 
 ## License
 
@@ -263,9 +341,11 @@ MIT
 ## Maintainer Release Gates
 
 The manual `.github/workflows/release.yml` accepts only `main`, an exact current
-SHA, stable version and typed package confirmation. It requires successful
-Node 22/24/26 main-push CI for that SHA, a public matching repository, a clean
-production audit and the validated archive hash. Only the final hosted publish
+SHA, `2.x` version and `publish elven-logs-interceptor@VERSION next` confirmation.
+It requires successful Node 22/24/26 and actual minimum 22.0.0 main-push CI for
+that SHA, a public matching repository, a clean production audit and the validated
+archive hash. `next` is enforced in metadata, guard and publish command; `latest`
+is not promoted. Only the final hosted publish
 job receives `NPM_TOKEN`; `id-token: write` and `--provenance` remain mandatory.
 There are no push/tag publication triggers and no provenance fallback.
 
@@ -273,7 +353,7 @@ An authorized maintainer must configure `NPM_TOKEN` in this package's matching
 GitHub repository before dispatch. No token was read, created or changed by the
 audit, and trusted-publisher configuration is not assumed. A coordinator token
 in another repository does not establish this package's provenance. This
-workflow was prepared, not dispatched. See the [npm provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
+2.x workflow candidate was prepared, not dispatched. See the [npm provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
 
 The legacy `logs-interceptor@2.1.6` is a separate identity, not an npm alias.
 Do not substitute it without translating `LOGS_INTERCEPTOR_*` configuration and

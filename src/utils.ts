@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import { LogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
 import { LogLevel, LogLevelVO } from './domain/value-objects/LogLevel';
 import { boundedSnapshot } from './infrastructure/memory/BoundedSnapshot';
+import { MatcherPolicy, type MatcherExecution } from './infrastructure/privacy/MatcherPolicy';
 
 const internalConsole = {
   debug: console.log.bind(console),
@@ -212,30 +213,12 @@ export function safeStringify(
 /**
  * Detect sensitive data in a string
  */
-export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
-  for (const pattern of patterns) {
-    pattern.lastIndex = 0;
-    if (pattern.test(text)) {
-      return true;
-    }
-  }
-
-  const commonPatterns = [
-    /\b[A-Za-z0-9._%+-]{1,256}@[A-Za-z0-9.-]{1,256}\.[A-Za-z]{2,63}\b/, // Bounded email scan
-    /\b(?:\d{4}[-\s]?){3}\d{4}\b/, // Credit card
-    /\b\d{3}-\d{2}-\d{4}\b/, // SSN
-    /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/, // CPF (Brazilian)
-    /Bearer\s+[A-Za-z0-9\-._~+\/=]*/i, // Bearer tokens
-    /Basic\s+[A-Za-z0-9+\/=]*/i, // Basic auth
-  ];
-
-  for (const pattern of commonPatterns) {
-    if (pattern.test(text)) {
-      return true;
-    }
-  }
-
-  return false;
+export function detectSensitiveData(text: string, patterns: RegExp[], execution?: MatcherExecution): boolean {
+  if (execution) return execution.policy.sensitive(text, execution);
+  const policy = new MatcherPolicy({ sensitivePatterns: patterns, sanitize: true });
+  const scope = policy.begin();
+  try { return policy.sensitive(text, scope); }
+  finally { scope.close(); policy.close(); }
 }
 
 /**
@@ -244,7 +227,14 @@ export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
 export function sanitizeData(
   data: Record<string, unknown>,
   sensitivePatterns: RegExp[],
+  execution?: MatcherExecution,
 ): Record<string, unknown> {
+  if (!execution) {
+    const policy = new MatcherPolicy({ sensitivePatterns, sanitize: true });
+    const scope = policy.begin();
+    try { return sanitizeData(data, sensitivePatterns, scope); }
+    finally { scope.close(); policy.close(); }
+  }
   data = boundedSnapshot(data) as Record<string, unknown>;
   if (!data || typeof data !== 'object') return { _value: data };
   const seen = new WeakSet<object>();
@@ -270,10 +260,7 @@ export function sanitizeData(
         sanitized._truncated = '[ENTRY_LIMIT_REACHED]';
         break;
       }
-      const isKeySensitive = sensitivePatterns.some((pattern) => {
-        pattern.lastIndex = 0;
-        return pattern.test(key);
-      });
+      const isKeySensitive = execution.policy.sensitiveKey(key, execution);
 
       if (isKeySensitive) {
         sanitized[key] = '[REDACTED]';
@@ -285,7 +272,7 @@ export function sanitizeData(
           nestedValue.length > 4096
             ? `${nestedValue.slice(0, 4096)}...[truncated]`
             : nestedValue;
-        sanitized[key] = detectSensitiveData(limitedValue, sensitivePatterns)
+        sanitized[key] = detectSensitiveData(limitedValue, sensitivePatterns, execution)
           ? '[REDACTED]'
           : limitedValue;
         continue;
@@ -298,7 +285,7 @@ export function sanitizeData(
               item.length > 4096
                 ? `${item.slice(0, 4096)}...[truncated]`
                 : item;
-            return detectSensitiveData(limitedItem, sensitivePatterns)
+            return detectSensitiveData(limitedItem, sensitivePatterns, execution)
               ? '[REDACTED]'
               : limitedItem;
           }

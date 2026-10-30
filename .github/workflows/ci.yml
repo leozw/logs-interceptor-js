@@ -38,3 +38,26 @@ jobs:
 
       - name: Test
         run: npm test -- --runInBand --detectOpenHandles
+      - name: Build clean runtime and portable matcher regression
+        run: |
+          npm run build
+          npm run test:matcher
+      - name: Clean tarball API, privacy, collector and lifecycle consumers
+        run: npm run test:consumer
+
+  minimum-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.0.0
+      - name: Actual minimum production artifact, not the development toolchain floor
+        run: |
+          node --test scripts/matcher-security.test.cjs scripts/matcher-contracts.test.cjs
+          node scripts/qualify-consumer.cjs

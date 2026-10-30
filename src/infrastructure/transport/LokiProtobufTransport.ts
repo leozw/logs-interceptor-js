@@ -137,7 +137,7 @@ export class LokiProtobufTransport implements ILogTransport {
         'Content-Type': 'application/x-protobuf',
         'Content-Encoding': 'snappy',
         'X-Scope-OrgID': this.config.tenantId ?? '',
-        'User-Agent': 'logs-interceptor/3.0.0',
+        'User-Agent': 'elven-logs-interceptor/2.0.0',
         ...this.extraHeaders,
       };
 

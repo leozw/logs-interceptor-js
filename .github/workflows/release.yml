@@ -7,11 +7,11 @@ on:
         required: true
         type: string
       version:
-        description: Exact stable package version
+        description: Exact optional-major package version (next only)
         required: true
         type: string
       confirmation:
-        description: "Type publish PACKAGE@VERSION"
+        description: "Type publish elven-logs-interceptor@VERSION next"
         required: true
         type: string
 permissions:
@@ -46,11 +46,14 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm test -- --runInBand
+      - run: npm run test:matcher
       - run: npm audit --omit=dev
       - name: Pack reviewed artifact
         run: node scripts/release-guard.cjs pack
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Qualify the exact archive to be published
+        run: node scripts/qualify-consumer.cjs ./release/package.tgz
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: validated-npm-package
@@ -84,6 +87,6 @@ jobs:
       - name: Publish exact validated archive with mandatory provenance
         run: |
           test -n "$NODE_AUTH_TOKEN" || { echo "NPM_TOKEN is not configured"; exit 1; }
-          npm publish ./release/package.tgz --ignore-scripts --provenance --access public --registry https://registry.npmjs.org/
+          npm publish ./release/package.tgz --ignore-scripts --provenance --access public --tag next --registry https://registry.npmjs.org/
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

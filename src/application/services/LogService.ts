@@ -19,6 +19,7 @@ import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { MetricsCollector } from '../../infrastructure/metrics/MetricsCollector';
 import { internalWarn } from '../../utils';
 import { boundedSnapshot } from '../../infrastructure/memory/BoundedSnapshot';
+import type { MatcherExecution } from '../../infrastructure/privacy/MatcherPolicy';
 
 interface FlushTask {
   entries: LogEntryEntity[];
@@ -172,15 +173,17 @@ export class LogService implements ILogger {
       return;
     }
 
+    let execution: MatcherExecution | undefined;
     try {
+      execution = this.filter.beginRecord?.();
       const entry = this.createLogEntry(level, message, context);
 
-      if (!this.filter.shouldProcess(entry)) {
+      if (!this.filter.shouldProcess(entry, execution)) {
         this.metrics.logsDropped++;
         return;
       }
 
-      const filteredEntry = this.filter.filter(entry);
+      const filteredEntry = this.filter.filter(entry, execution);
       if (
         filteredEntry.message !== entry.message ||
         filteredEntry.context !== entry.context
@@ -195,6 +198,8 @@ export class LogService implements ILogger {
       // Telemetry must not throw through the application's logging call.
       this.metrics.logsDropped++;
       this.metrics.errorCount++;
+    } finally {
+      execution?.close();
     }
   }
 
@@ -403,7 +408,8 @@ export class LogService implements ILogger {
     }
 
     return {
-      healthy: this.metrics.errorCount < 10 && transportHealth.healthy,
+      healthy: this.metrics.errorCount < 10 && transportHealth.healthy && (this.filter.privacyDiagnostics?.().length ?? 0) === 0,
+      privacyDiagnostics: this.filter.privacyDiagnostics?.(),
       lastSuccessfulFlush: this.metrics.lastFlushTime,
       consecutiveErrors: this.metrics.errorCount,
       bufferUtilization:
@@ -457,7 +463,7 @@ export class LogService implements ILogger {
     } finally {
       if (timer) clearTimeout(timer);
       this.buffer.destroy();
-      await this.transport.destroy();
+      try { await this.transport.destroy(); } finally { this.filter.close?.(); }
     }
 
     if (flushError) {

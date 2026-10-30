@@ -213,7 +213,7 @@ test('bounded serialization does not invoke getters, toJSON, or expand Buffers',
   expect(safeStringify({ one: 1n })).toContain('1n');
 });
 
-test('global regexes are deterministic and dangerous custom patterns fail validation', () => {
+test('global regexes are deterministic and unsupported custom syntax fails validation', () => {
   const patterns = [/token/g];
   expect(detectSensitiveData('token', patterns)).toBe(true);
   expect(detectSensitiveData('token', patterns)).toBe(true);
@@ -221,9 +221,9 @@ test('global regexes are deterministic and dangerous custom patterns fail valida
     ConfigService.validate({
       appName: 'test',
       transport: { url: 'http://localhost', type: 'otlp' },
-      filter: { patterns: [/(a+)+$/] },
+      filter: { patterns: [/token(?==)/] },
     }).join(),
-  ).toContain('safe regular expressions');
+  ).toContain('ELVEN_MATCHER_UNSUPPORTED_PATTERN');
   expect(
     ConfigService.validate({
       appName: 'test',

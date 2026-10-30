@@ -6,6 +6,7 @@ import { resourceFromAttributes } from '@opentelemetry/resources';
 import type { ReadableLogRecord } from '@opentelemetry/sdk-logs';
 import { boundedAgent } from './BoundedAgent';
 import { applyLabelPolicy } from '../filter/LabelPolicy';
+import { MatcherPolicy } from '../privacy/MatcherPolicy';
 import { ResolvedLogsInterceptorConfig } from '../../application/config/LogsInterceptorConfig';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import {
@@ -16,7 +17,7 @@ import {
 
 const instrumentationScope = {
   name: 'elven-logs-interceptor',
-  version: '1.1.1',
+  version: '2.0.0',
 };
 
 export class OtlpHttpTransport implements ILogTransport {
@@ -35,7 +36,20 @@ export class OtlpHttpTransport implements ILogTransport {
     totalBytesSent: 0,
   };
 
-  constructor(private readonly config: ResolvedLogsInterceptorConfig) {
+  private readonly matcher: MatcherPolicy;
+  private readonly ownsMatcher: boolean;
+  constructor(private readonly config: ResolvedLogsInterceptorConfig, matcher?: MatcherPolicy) {
+    this.matcher = matcher ?? new MatcherPolicy(config.filter);
+    this.ownsMatcher = !matcher;
+    this.matcher.assertReady();
+    const execution = this.matcher.begin();
+    try {
+      this.resource = resourceFromAttributes(applyLabelPolicy(config.labels, config.filter, {
+        'service.name': config.appName,
+        'service.version': config.version,
+        'deployment.environment.name': config.environment,
+      }, execution));
+    } finally { execution.close(); }
     const transport = config.transport;
     this.agents = boundedAgent(transport.timeout, transport.maxSockets, transport.enableConnectionPooling);
     this.exporter = new OTLPLogExporter({
@@ -48,13 +62,8 @@ export class OtlpHttpTransport implements ILogTransport {
         : CompressionAlgorithm.NONE,
       keepAlive: transport.enableConnectionPooling,
       httpAgentOptions: this.agents.factory,
-      userAgent: 'elven-logs-interceptor/1.1.1',
+      userAgent: 'elven-logs-interceptor/2.0.0',
     });
-    this.resource = resourceFromAttributes(applyLabelPolicy(config.labels, config.filter, {
-      'service.name': config.appName,
-      'service.version': config.version,
-      'deployment.environment.name': config.environment,
-    }));
   }
 
   async send(entries: LogEntry[]): Promise<void> {
@@ -113,7 +122,7 @@ export class OtlpHttpTransport implements ILogTransport {
 
   async destroy(): Promise<void> {
     this.agents.destroy();
-    await this.exporter.shutdown();
+    try { await this.exporter.shutdown(); } finally { if (this.ownsMatcher) this.matcher.close(); }
   }
 
   private toReadableLogRecord(entry: LogEntry): ReadableLogRecord {

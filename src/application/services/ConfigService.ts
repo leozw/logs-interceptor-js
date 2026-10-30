@@ -3,7 +3,7 @@
  * Handles configuration loading, validation, and resolution
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
-import safeRegex from 'safe-regex2';
+import { validateMatcherPatterns } from '../../infrastructure/privacy/MatcherPolicy';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -100,19 +100,22 @@ export class ConfigService {
     ]) {
       if (
         patterns &&
-        (patterns.length > 32 ||
+        (!Array.isArray(patterns) || patterns.length > 32 ||
           patterns.some(
             (pattern) =>
               !(pattern instanceof RegExp) ||
-              pattern.source.length > 256 ||
-              !safeRegex(pattern),
+              pattern.source.length > 256,
           ))
       ) {
         errors.push(
-          'Filter patterns must contain at most 32 safe regular expressions (256 characters each)',
+          'Filter patterns must contain at most 32 RegExp inputs (256 characters each)',
         );
       }
     }
+    if (
+      (config.filter?.patterns && !validateMatcherPatterns(config.filter.patterns)) ||
+      (config.filter?.sanitize !== false && config.filter?.sensitivePatterns && !validateMatcherPatterns(config.filter.sensitivePatterns))
+    ) errors.push('ELVEN_MATCHER_UNSUPPORTED_PATTERN');
 
     if (!config.transport?.url) {
       errors.push('Transport URL is required');

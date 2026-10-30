@@ -13,9 +13,10 @@ function assertContext(env, pkg) {
   if (env.RUNNER_ENVIRONMENT !== 'github-hosted') throw new Error('GitHub-hosted runner required for provenance');
   if (env.GITHUB_WORKFLOW_REF !== repo + '/.github/workflows/release.yml@refs/heads/main') throw new Error('Unexpected release workflow');
   if (!/^[a-f0-9]{40}$/.test(env.EXPECTED_SHA || '') || env.EXPECTED_SHA !== env.GITHUB_SHA) throw new Error('Exact source SHA confirmation required');
-  if (env.CONFIRM !== 'publish ' + pkg.name + '@' + pkg.version || env.EXPECTED_VERSION !== pkg.version || !/^\d+\.\d+\.\d+$/.test(pkg.version)) throw new Error('Exact stable package/version confirmation required');
+  if (env.CONFIRM !== 'publish ' + pkg.name + '@' + pkg.version + ' next' || env.EXPECTED_VERSION !== pkg.version || !/^2\.\d+\.\d+$/.test(pkg.version)) throw new Error('Exact optional-major package/version/next confirmation required');
   if (pkg.repository?.url !== 'git+https://github.com/' + repo + '.git') throw new Error('Provenance repository metadata mismatch');
   if (pkg.publishConfig?.provenance !== true || pkg.publishConfig?.access !== 'public' || pkg.publishConfig?.registry !== 'https://registry.npmjs.org/') throw new Error('Mandatory public registry/provenance configuration missing');
+  if (pkg.name !== 'elven-logs-interceptor' || pkg.publishConfig.tag !== 'next') throw new Error('Optional logger major must publish only to next');
   return repo;
 }
 async function get(url, token) {
@@ -32,11 +33,12 @@ async function verifyRemote(env, pkg) {
   if (head.object.sha !== env.EXPECTED_SHA) throw new Error('main moved: revalidate and confirm its new SHA');
   const runs = await get(api + '/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=100', env.GH_TOKEN);
   const run = runs.workflow_runs.find(run => run.head_sha === env.EXPECTED_SHA && run.conclusion === 'success' && run.event === 'push');
-  if (!run) throw new Error('Successful main-push CI for this exact SHA required, including the unchanged performance gate');
+  if (!run) throw new Error('Successful main-push CI for this exact SHA required');
   const jobs = await get(api + '/actions/runs/' + run.id + '/jobs?per_page=100', env.GH_TOKEN);
   for (const node of ['22.x', '24.x', '26.x']) {
     if (!jobs.jobs.some(job => job.name === 'test (' + node + ')' && job.conclusion === 'success')) throw new Error('Missing successful Node CI job: ' + node);
   }
+  if (!jobs.jobs.some(job => job.name === 'minimum-runtime' && job.conclusion === 'success')) throw new Error('Missing successful actual Node 22.0.0 consumer job');
   const version = await fetch('https://registry.npmjs.org/' + pkg.name + '/' + pkg.version, { signal: AbortSignal.timeout(15000), redirect: 'error' });
   if (version.status !== 404) throw new Error(version.ok ? 'Version already published; no replacement allowed' : 'Registry availability UNKNOWN: HTTP ' + version.status);
 }

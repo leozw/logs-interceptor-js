@@ -1,6 +1,7 @@
 import type { ResolvedLogsInterceptorConfig } from '../../application/config/LogsInterceptorConfig';
 import { sanitizeData } from '../../utils';
 import { boundedSnapshot } from '../memory/BoundedSnapshot';
+import type { MatcherExecution } from '../privacy/MatcherPolicy';
 
 type PrivacyPolicy = Pick<ResolvedLogsInterceptorConfig['filter'], 'sanitize' | 'sensitivePatterns'>;
 
@@ -9,6 +10,7 @@ export function applyLabelPolicy(
   labels: Readonly<Record<string, unknown>> | undefined,
   policy: PrivacyPolicy,
   defaults: Readonly<Record<string, string>> = {},
+  execution?: MatcherExecution,
 ): Record<string, string> {
   const detached = boundedSnapshot(labels);
   const combined: Record<string, unknown> = { ...defaults };
@@ -18,7 +20,7 @@ export function applyLabelPolicy(
     }
   }
   const filtered = policy.sanitize
-    ? sanitizeData(combined, policy.sensitivePatterns)
+    ? sanitizeData(combined, policy.sensitivePatterns, execution)
     : boundedSnapshot(combined);
   const result: Record<string, string> = Object.create(null);
   if (filtered && typeof filtered === 'object' && !Array.isArray(filtered)) {

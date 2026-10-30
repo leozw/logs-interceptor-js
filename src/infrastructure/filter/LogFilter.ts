@@ -12,6 +12,7 @@ import {
 } from '../../utils';
 import { boundedSnapshot } from '../memory/BoundedSnapshot';
 import { applyLabelPolicy } from './LabelPolicy';
+import { MatcherPolicy, type MatcherExecution } from '../privacy/MatcherPolicy';
 
 export interface LogFilterConfig {
   readonly levels: LogLevel[];
@@ -24,9 +25,20 @@ export interface LogFilterConfig {
 }
 
 export class LogFilter implements ILogFilter {
-  constructor(private readonly config: LogFilterConfig) {}
+  private readonly matcher: MatcherPolicy;
+  constructor(private readonly config: LogFilterConfig, matcher?: MatcherPolicy) {
+    this.matcher = matcher ?? new MatcherPolicy(config);
+    this.matcher.assertReady();
+  }
+  beginRecord(): MatcherExecution { return this.matcher.begin(); }
+  privacyDiagnostics(): readonly string[] { return this.matcher.diagnostics(); }
+  close(): void { this.matcher.close(); }
 
-  shouldProcess(entry: LogEntry): boolean {
+  shouldProcess(entry: LogEntry, execution?: MatcherExecution): boolean {
+    if (!execution) {
+      const scope = this.beginRecord();
+      try { return this.shouldProcess(entry, scope); } finally { scope.close(); }
+    }
     // Check if level is enabled
     if (!this.isLevelEnabled(entry.level)) {
       return false;
@@ -34,9 +46,7 @@ export class LogFilter implements ILogFilter {
 
     // Check message patterns
     if (this.config.patterns.length > 0) {
-      const shouldInclude = this.config.patterns.some((pattern) =>
-        (pattern.lastIndex = 0, pattern.test(entry.message.slice(0, this.config.maxMessageLength)))
-      );
+      const shouldInclude = this.matcher.include(entry.message.slice(0, this.config.maxMessageLength), execution);
       if (!shouldInclude) {
         return false;
       }
@@ -50,7 +60,11 @@ export class LogFilter implements ILogFilter {
     return true;
   }
 
-  filter(entry: LogEntry): LogEntry {
+  filter(entry: LogEntry, execution?: MatcherExecution): LogEntry {
+    if (!execution) {
+      const scope = this.beginRecord();
+      try { return this.filter(entry, scope); } finally { scope.close(); }
+    }
     // Truncate message if too long
     let message = entry.message;
     if (message.length > this.config.maxMessageLength) {
@@ -64,7 +78,7 @@ export class LogFilter implements ILogFilter {
       ? boundedSnapshot(entry.context, 8, this.config.maxContextBytes) as Record<string, unknown>
       : undefined;
     if (this.config.sanitize && context) {
-      context = sanitizeData(context, this.config.sensitivePatterns);
+      context = sanitizeData(context, this.config.sensitivePatterns, execution);
     }
 
     if (context) {
@@ -83,7 +97,7 @@ export class LogFilter implements ILogFilter {
 
     if (
       this.config.sanitize &&
-      detectSensitiveData(message, this.config.sensitivePatterns)
+      detectSensitiveData(message, this.config.sensitivePatterns, execution)
     ) {
       message = '[REDACTED]';
     }
@@ -92,7 +106,7 @@ export class LogFilter implements ILogFilter {
       ...entry,
       message,
       context,
-      labels: entry.labels ? applyLabelPolicy(entry.labels, this.config) : undefined,
+      labels: entry.labels ? applyLabelPolicy(entry.labels, this.config, {}, execution) : undefined,
     };
   }
 
