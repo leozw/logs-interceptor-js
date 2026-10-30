@@ -1,0 +1,12 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
+const root = path.resolve(__dirname, '..');
+const stale = path.join(root, 'dist', '__tests__', 'stale-build-regression.js');
+fs.mkdirSync(path.dirname(stale), { recursive: true });
+fs.writeFileSync(stale, 'throw new Error("stale build fixture");\n');
+execFileSync(process.execPath, [path.join(root, 'scripts/build.cjs')], { cwd: root, stdio: 'inherit' });
+assert.equal(fs.existsSync(stale), false);
+assert.equal(typeof require('../dist').init, 'function');
+console.log('Legacy build removed stale generated outputs and preserved root API');

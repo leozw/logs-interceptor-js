@@ -21,6 +21,8 @@ export class MemoryBuffer implements ILogBuffer {
   private flushTimer: NodeJS.Timeout | null = null;
   private memoryTracker: MemoryTracker;
   private flushCallback?: () => void;
+  private immediateFlush: NodeJS.Immediate | null = null;
+  private droppedEntries = 0;
 
   constructor(private readonly config: MemoryBufferConfig) {
     this.memoryTracker = new MemoryTracker();
@@ -40,6 +42,12 @@ export class MemoryBuffer implements ILogBuffer {
   add(entry: LogEntry): void {
     this.entries.push(entry);
     this.memoryTracker.addEntry(entry);
+    const maxSize = Number.isFinite(this.config.maxSize) ? Math.max(1, Math.min(10000, this.config.maxSize)) : 100;
+    const maxMemory = Number.isFinite(this.config.maxMemoryMB) ? Math.max(0.001, Math.min(1024, this.config.maxMemoryMB)) : 50;
+    while (this.entries.length && (this.entries.length > maxSize || this.memoryTracker.getTotalSizeMB() > maxMemory)) {
+      this.memoryTracker.removeEntries([this.entries.shift()!]);
+      this.droppedEntries = Math.min(Number.MAX_SAFE_INTEGER, this.droppedEntries + 1);
+    }
 
     // Check memory threshold
     const memoryMB = this.memoryTracker.getTotalSizeMB();
@@ -65,6 +73,7 @@ export class MemoryBuffer implements ILogBuffer {
   }
 
   private triggerImmediateFlush(): void {
+    if (this.immediateFlush) return;
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -72,11 +81,14 @@ export class MemoryBuffer implements ILogBuffer {
 
     // Use setImmediate to allow current event loop tick to finish
     // and prevent potential recursion issues
-    setImmediate(() => {
+    this.immediateFlush = setImmediate(() => {
+      this.immediateFlush = null;
       if (this.flushCallback && this.entries.length > 0) {
         this.flushCallback();
+        if (this.config.autoFlush && this.entries.length > 0) this.scheduleFlush();
       }
     });
+    this.immediateFlush.unref();
   }
 
   flush(): LogEntry[] {
@@ -119,6 +131,8 @@ export class MemoryBuffer implements ILogBuffer {
   }
 
   clear(): void {
+    if (this.immediateFlush) clearImmediate(this.immediateFlush);
+    this.immediateFlush = null;
     this.memoryTracker.removeEntries(this.entries);
     this.entries = [];
     if (this.flushTimer) {
@@ -144,6 +158,7 @@ export class MemoryBuffer implements ILogBuffer {
       oldestEntry,
       newestEntry,
       memoryUsageMB: memoryStats.totalMB,
+      droppedEntries: this.droppedEntries,
     };
   }
 
@@ -172,6 +187,7 @@ export class MemoryBuffer implements ILogBuffer {
     // Update memory tracker
     if (removed.length > 0) {
       this.memoryTracker.removeEntries(removed);
+      this.droppedEntries = Math.min(Number.MAX_SAFE_INTEGER, this.droppedEntries + removed.length);
     }
   }
 
@@ -185,8 +201,11 @@ export class MemoryBuffer implements ILogBuffer {
       // Notify service that flush should be triggered
       if (this.flushCallback && this.entries.length > 0) {
         this.flushCallback();
+        // A coalesced in-flight send has not consumed this tail yet.
+        if (this.config.autoFlush && this.entries.length > 0) this.scheduleFlush();
       }
     }, this.config.flushInterval);
+    this.flushTimer.unref();
   }
 }
 

@@ -3,6 +3,8 @@
  * Handles configuration loading, validation, and resolution
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
+import { validateMatcherPatterns } from '../../infrastructure/privacy/MatcherPolicy';
+import { ownedConfiguration } from '../../infrastructure/memory/OwnedConfiguration';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -19,6 +21,24 @@ export class ConfigService {
    */
   static validate(config: Partial<LogsInterceptorConfig>): string[] {
     const errors: string[] = [];
+    for (const [name, value, min, max] of [
+      ['timeout', config.transport?.timeout, 1, 30000],
+      ['maxRetries', config.transport?.maxRetries, 0, 20],
+      ['retryDelay', config.transport?.retryDelay, 0, 30000],
+      ['maxWorkers', config.transport?.maxWorkers, 1, 16],
+      ['maxSockets', config.transport?.maxSockets, 1, 256],
+      ['maxSize', config.buffer?.maxSize, 1, 10000],
+      ['maxMemoryMB', config.buffer?.maxMemoryMB, 0.001, 1024],
+      ['maxMessageLength', config.filter?.maxMessageLength, 1, 65536],
+    ] as const) {
+      if (value !== undefined && (!Number.isFinite(value) || value < min || value > max)) errors.push(`${name} must be finite and between ${min} and ${max}`);
+    }
+    for (const patterns of [config.filter?.patterns, config.filter?.sensitivePatterns]) {
+      if (!patterns) continue;
+      if (!validateMatcherPatterns(patterns)) {
+        errors.push('ELVEN_MATCHER_UNSUPPORTED_PATTERN');
+      }
+    }
 
     if (!config.transport?.url) {
       errors.push('Transport URL is required');
@@ -66,13 +86,15 @@ export class ConfigService {
    * Resolve configuration with defaults
    */
   static resolve(config: LogsInterceptorConfig): ResolvedLogsInterceptorConfig {
-    return {
+    config = ownedConfiguration(config);
+    return ownedConfiguration({
       transport: this.resolveTransport(config.transport),
       appName: config.appName,
       version: config.version ?? '1.0.0',
       environment: config.environment ?? 'production',
       labels: config.labels ?? {},
       dynamicLabels: config.dynamicLabels ?? {},
+      indexCorrelationIds: config.indexCorrelationIds ?? true,
       buffer: this.resolveBuffer(config.buffer),
       filter: this.resolveFilter(config.filter),
       circuitBreaker: this.resolveCircuitBreaker(config.circuitBreaker),
@@ -85,7 +107,7 @@ export class ConfigService {
       preserveOriginalConsole: config.preserveOriginalConsole ?? true,
       debug: config.debug ?? false,
       silentErrors: config.silentErrors ?? false,
-    };
+    });
   }
 
   private static resolveTransport(

@@ -11,6 +11,8 @@ export interface WinstonTransportOptions extends TransportStream.TransportStream
 
 export class WinstonTransport extends TransportStream {
   private readonly logger: ILogger;
+  private pendingLogged: any[] = [];
+  private loggedImmediate?: NodeJS.Immediate;
 
   constructor(opts: WinstonTransportOptions) {
     super(opts);
@@ -18,8 +20,12 @@ export class WinstonTransport extends TransportStream {
   }
 
   log(info: any, callback: () => void): void {
-    setImmediate(() => {
-      this.emit('logged', info);
+    // Keep the legacy synchronous completion without an unbounded immediate backlog.
+    if (this.pendingLogged.length >= 128) this.flushLogged();
+    this.pendingLogged.push(info);
+    if (!this.loggedImmediate) this.loggedImmediate = setImmediate(() => {
+      this.loggedImmediate = undefined;
+      this.flushLogged();
     });
 
     const { level, message, ...meta } = info;
@@ -29,7 +35,7 @@ export class WinstonTransport extends TransportStream {
     // We map roughly to fatal, error, warn, info, debug
 
     // Extract potential error object from meta
-    let context: Record<string, unknown> | undefined = meta;
+    const context: Record<string, unknown> | undefined = meta;
 
     // If meta has Splat/Symbol(splat), we might want to clean it up, 
     // but for now passing meta as context is standard.
@@ -52,7 +58,12 @@ export class WinstonTransport extends TransportStream {
       default:
         this.logger.info(message, context);
     }
-
     callback();
+  }
+
+  private flushLogged(): void {
+    const pending = this.pendingLogged;
+    this.pendingLogged = [];
+    for (const info of pending) this.emit('logged', info);
   }
 }

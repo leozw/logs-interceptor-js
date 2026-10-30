@@ -116,7 +116,7 @@ export class MemoryTracker {
     if (entry.context) {
       const contextKeys = Object.keys(entry.context);
       size += contextKeys.length * 20; // Average key size
-      size += contextKeys.length * 50; // Average value size estimate
+      size += this.graphSize(entry.context);
     }
 
     // Labels - more accurate since they're strings
@@ -136,5 +136,33 @@ export class MemoryTracker {
     size += 200; // Object overhead
 
     return size;
+  }
+
+  private graphSize(value: unknown): number {
+    const seen = new WeakSet<object>();
+    const stack = [value];
+    let nodes = 10_000;
+    let bytes = 0;
+    while (stack.length) {
+      if (--nodes < 0) return Number.MAX_SAFE_INTEGER;
+      const current = stack.pop();
+      if (typeof current === 'string') { bytes += current.length * 2; continue; }
+      bytes += 16;
+      if (!current || typeof current !== 'object' || seen.has(current)) continue;
+      seen.add(current);
+      if (ArrayBuffer.isView(current) || current instanceof ArrayBuffer) {
+        bytes += current.byteLength;
+        continue;
+      }
+      for (const key in current) {
+        if (--nodes < 0) return Number.MAX_SAFE_INTEGER;
+        const descriptor = Object.getOwnPropertyDescriptor(current, key);
+        if (!descriptor) continue;
+        if (!('value' in descriptor)) return Number.MAX_SAFE_INTEGER;
+        bytes += key.length * 2;
+        stack.push(descriptor.value);
+      }
+    }
+    return bytes;
   }
 }

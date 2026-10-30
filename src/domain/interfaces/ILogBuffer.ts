@@ -51,6 +51,7 @@ export interface BufferMetrics {
   readonly oldestEntry?: number;
   readonly newestEntry?: number;
   readonly memoryUsageMB: number;
+  readonly droppedEntries?: number;
 }
 
 

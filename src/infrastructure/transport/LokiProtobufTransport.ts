@@ -5,12 +5,14 @@
 import * as protobuf from 'protobufjs';
 import * as snappy from 'snappy';
 import { Pool } from 'undici';
+import { RetryGate, responseError, sendScope } from './RetryPolicy';
 import { TransportConfig } from '../../application/config/LogsInterceptorConfig';
 import { LogEntry } from '../../domain/entities/LogEntry';
 import { ILogTransport, TransportHealth, TransportMetrics } from '../../domain/interfaces/ILogTransport';
 import { LOKI_PROTO } from './proto/loki-proto';
 
 export class LokiProtobufTransport implements ILogTransport {
+  private retryGate = new RetryGate();
   private client: Pool;
   private root: protobuf.Root | null = null;
   private PushRequest: protobuf.Type | null = null;
@@ -43,6 +45,8 @@ export class LokiProtobufTransport implements ILogTransport {
       keepAliveMaxTimeout: 600000,
       headersTimeout: config.timeout ?? 5000,
       bodyTimeout: config.timeout ?? 5000,
+      maxResponseSize: 65536,
+      connect: { timeout: config.timeout ?? 5000 },
     });
     this.initProtobuf();
   }
@@ -58,14 +62,16 @@ export class LokiProtobufTransport implements ILogTransport {
     }
   }
 
-  async send(entries: LogEntry[]): Promise<void> {
+  async send(entries: LogEntry[], signal?: AbortSignal): Promise<void> {
     if (entries.length === 0) return;
     if (!this.PushRequest) throw new Error('Protobuf not initialized');
 
     const startTime = performance.now();
     this.metrics.totalSends++;
+    const scope = sendScope(this.config.timeout ?? 5000, [this.retryGate.signal(), ...(signal ? [signal] : [])]);
 
     try {
+      await this.retryGate.wait(scope.deadline, scope.signal);
       // 1. Group by stream (labels)
       const streams = this.groupEntries(entries);
 
@@ -114,11 +120,14 @@ export class LokiProtobufTransport implements ILogTransport {
         method: 'POST',
         headers,
         body: compressed,
+        signal: scope.signal,
       });
 
       if (response.statusCode >= 300) {
-        const body = await response.body.text();
-        throw new Error(`Loki responded with ${response.statusCode}: ${body}`);
+        const failure = responseError(response.statusCode, response.headers, this.config.retryDelay ?? 1000);
+        this.retryGate.observe(failure);
+        await response.body.text().catch(() => {});
+        throw failure;
       } else {
         // Consume body to free socket
         await response.body.text();
@@ -130,7 +139,7 @@ export class LokiProtobufTransport implements ILogTransport {
     } catch (error) {
       this.recordFailure(error as Error);
       throw error;
-    }
+    } finally { scope.close(); }
   }
 
   private groupEntries(entries: LogEntry[]): { labels: Record<string, string>; entries: LogEntry[] }[] {
@@ -184,7 +193,7 @@ export class LokiProtobufTransport implements ILogTransport {
   }
 
   getHealth(): TransportHealth {
-    return { ...this.health };
+    return { ...this.health, rateLimitCodes: this.retryGate.diagnostics() };
   }
 
   getMetrics(): TransportMetrics {
@@ -192,7 +201,8 @@ export class LokiProtobufTransport implements ILogTransport {
   }
 
   async destroy(): Promise<void> {
-    await this.client.close();
+    this.retryGate.close();
+    await this.client.destroy();
   }
 
   private recordSuccess(duration: number): void {

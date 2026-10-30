@@ -1,5 +1,12 @@
+import { boundedSnapshot } from "./infrastructure/memory/BoundedSnapshot";
+const originalWarning = console.warn.bind(console);
+export function internalWarn(message: string, _context?: unknown): void {
+  if (process.env.LOGS_INTERCEPTOR_SILENT_ERRORS !== 'true') originalWarning(`[logs-interceptor] ${message}`);
+}
 import * as crypto from 'crypto';
 import { LogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
+import { MatcherPolicy, type MatcherExecution } from './infrastructure/privacy/MatcherPolicy';
+import { detachedString } from './infrastructure/memory/DetachedString';
 
 export interface EnvironmentConfig {
   LOGS_INTERCEPTOR_URL?: string;
@@ -18,6 +25,7 @@ export interface EnvironmentConfig {
   LOGS_INTERCEPTOR_CIRCUIT_BREAKER?: string;
   LOGS_INTERCEPTOR_SANITIZE?: string;
   LOGS_INTERCEPTOR_MAX_MEMORY_MB?: string;
+  LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS?: string;
 }
 
 export interface TransportOptions {
@@ -33,120 +41,23 @@ export interface TransportOptions {
 /**
  * Safely stringify any value, handling circular references and non-serializable objects
  */
-export function safeStringify(value: unknown, maxDepth: number = 10): string {
-  const seen = new WeakSet();
-  let depth = 0;
-  
-  try {
-    return JSON.stringify(value, function(key, val) {
-      // Check depth
-      if (depth > maxDepth) {
-        return '[Max Depth Reached]';
-      }
-      
-      if (val === null || val === undefined) {
-        return val;
-      }
-      
-      if (typeof val === 'object') {
-        depth++;
-        if (seen.has(val)) {
-          return '[Circular Reference]';
-        }
-        seen.add(val);
-        
-        // Handle special objects
-        if (val instanceof Buffer) {
-          return `[Buffer: ${val.length} bytes]`;
-        }
-        
-        if (val instanceof Promise) {
-          return '[Promise]';
-        }
-        
-        if (val instanceof WeakMap || val instanceof WeakSet) {
-          return `[${val.constructor.name}]`;
-        }
-      }
-      
-      if (typeof val === 'function') {
-        return `[Function: ${val.name || 'anonymous'}]`;
-      }
-      
-      if (typeof val === 'symbol') {
-        return `[Symbol: ${val.toString()}]`;
-      }
-      
-      if (typeof val === 'bigint') {
-        return val.toString() + 'n';
-      }
-      
-      if (val instanceof Error) {
-        return {
-          name: val.name,
-          message: val.message,
-          stack: val.stack,
-          code: (val as any).code,
-        };
-      }
-      
-      if (val instanceof Date) {
-        return val.toISOString();
-      }
-      
-      if (val instanceof RegExp) {
-        return val.toString();
-      }
-      
-      if (val instanceof Map) {
-        return {
-          type: 'Map',
-          entries: Array.from(val.entries()),
-        };
-      }
-      
-      if (val instanceof Set) {
-        return {
-          type: 'Set',
-          values: Array.from(val.values()),
-        };
-      }
-      
-      return val;
-    }, 2);
-  } catch (error) {
-    return `[Unserializable: ${error instanceof Error ? error.message : 'Unknown error'}]`;
-  }
+export function safeStringify(
+  value: unknown,
+  maxDepth: number = 10,
+  maxBytes = 16_384,
+): string {
+  return JSON.stringify(boundedSnapshot(value, maxDepth, maxBytes));
 }
 
 /**
  * Detect sensitive data in a string
  */
-export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
-  // Check against patterns
-  for (const pattern of patterns) {
-    if (pattern.test(text)) {
-      return true;
-    }
-  }
-  
-  // Check for common sensitive patterns
-  const commonPatterns = [
-    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, // Email
-    /\b(?:\d{4}[-\s]?){3}\d{4}\b/, // Credit card
-    /\b\d{3}-\d{2}-\d{4}\b/, // SSN
-    /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/, // CPF (Brazilian)
-    /Bearer\s+[A-Za-z0-9\-._~+\/]+=*/i, // Bearer tokens
-    /Basic\s+[A-Za-z0-9+\/]+=*/i, // Basic auth
-  ];
-  
-  for (const pattern of commonPatterns) {
-    if (pattern.test(text)) {
-      return true;
-    }
-  }
-  
-  return false;
+export function detectSensitiveData(text: string, patterns: RegExp[], execution?: MatcherExecution): boolean {
+  if (execution) return execution.policy.sensitive(text, execution);
+  const policy = new MatcherPolicy({ sensitivePatterns: patterns, sanitize: true });
+  const scope = policy.begin();
+  try { return policy.sensitive(text, scope); }
+  finally { scope.close(); policy.close(); }
 }
 
 /**
@@ -154,46 +65,94 @@ export function detectSensitiveData(text: string, patterns: RegExp[]): boolean {
  */
 export function sanitizeData(
   data: Record<string, unknown>,
-  sensitivePatterns: RegExp[]
+  sensitivePatterns: RegExp[],
+  execution?: MatcherExecution,
 ): Record<string, unknown> {
-  const sanitized: Record<string, unknown> = {};
-  
-  for (const [key, value] of Object.entries(data)) {
-    // Check if key matches sensitive patterns
-    const isKeySensitive = sensitivePatterns.some(pattern => pattern.test(key));
-    
-    if (isKeySensitive) {
-      sanitized[key] = '[REDACTED]';
-      continue;
+  if (!execution) {
+    const policy = new MatcherPolicy({ sensitivePatterns, sanitize: true });
+    const scope = policy.begin();
+    try { return sanitizeData(data, sensitivePatterns, scope); }
+    finally { scope.close(); policy.close(); }
+  }
+  data = boundedSnapshot(data) as Record<string, unknown>;
+  if (!data || typeof data !== 'object') return { _value: data };
+  const seen = new WeakSet<object>();
+  const state = { entries: 0 };
+
+  const visit = (
+    value: Record<string, unknown>,
+    depth: number,
+  ): Record<string, unknown> => {
+    if (seen.has(value)) {
+      return { _circular: '[REDACTED]' };
     }
-    
-    // Handle different value types
-    if (typeof value === 'string') {
-      if (detectSensitiveData(value, sensitivePatterns)) {
-        sanitized[key] = '[REDACTED]';
-      } else {
-        sanitized[key] = value;
+    if (depth >= 8 || state.entries >= 500) {
+      return { _truncated: '[LIMIT_REACHED]' };
+    }
+
+    seen.add(value);
+    const sanitized: Record<string, unknown> = Object.create(null);
+
+    for (const [key, nestedValue] of Object.entries(value)) {
+      state.entries++;
+      if (state.entries > 500) {
+        sanitized._truncated = '[ENTRY_LIMIT_REACHED]';
+        break;
       }
-    } else if (typeof value === 'object' && value !== null) {
-      if (Array.isArray(value)) {
-        sanitized[key] = value.map(item => {
-          if (typeof item === 'string' && detectSensitiveData(item, sensitivePatterns)) {
-            return '[REDACTED]';
+      const isKeySensitive = execution.policy.sensitiveKey(key, execution);
+
+      if (isKeySensitive) {
+        sanitized[key] = '[REDACTED]';
+        continue;
+      }
+
+      if (typeof nestedValue === 'string') {
+        const limitedValue =
+          nestedValue.length > 4096
+            ? `${detachedString(nestedValue, 4096)}...[truncated]`
+            : detachedString(nestedValue, nestedValue.length);
+        sanitized[key] = detectSensitiveData(limitedValue, sensitivePatterns, execution)
+          ? '[REDACTED]'
+          : limitedValue;
+        continue;
+      }
+
+      if (Array.isArray(nestedValue)) {
+        sanitized[key] = nestedValue.slice(0, 100).map((item) => {
+          if (typeof item === 'string') {
+            const limitedItem =
+              item.length > 4096
+                ? `${detachedString(item, 4096)}...[truncated]`
+                : detachedString(item, item.length);
+            return detectSensitiveData(limitedItem, sensitivePatterns, execution)
+              ? '[REDACTED]'
+              : limitedItem;
           }
-          if (typeof item === 'object' && item !== null) {
-            return sanitizeData(item as Record<string, unknown>, sensitivePatterns);
+
+          if (item && typeof item === 'object') {
+            return visit(item as Record<string, unknown>, depth + 1);
           }
+
           return item;
         });
-      } else {
-        sanitized[key] = sanitizeData(value as Record<string, unknown>, sensitivePatterns);
+        continue;
       }
-    } else {
-      sanitized[key] = value;
+
+      if (nestedValue && typeof nestedValue === 'object') {
+        sanitized[key] = visit(
+          nestedValue as Record<string, unknown>,
+          depth + 1,
+        );
+        continue;
+      }
+
+      sanitized[key] = nestedValue;
     }
-  }
-  
-  return sanitized;
+
+    return sanitized;
+  };
+
+  return visit(data, 0);
 }
 
 /**
@@ -263,20 +222,22 @@ export function shouldSampleAdvanced(
     case 'random':
       return Math.random() < rate;
       
-    case 'deterministic':
+    case 'deterministic': {
       // Use a hash of the key to determine sampling
       if (!key) return Math.random() < rate;
       const hash = crypto.createHash('md5').update(key).digest();
       const hashValue = hash.readUInt32BE(0) / 0xFFFFFFFF;
       return hashValue < rate;
+    }
       
-    case 'adaptive':
+    case 'adaptive': {
       // Implement adaptive sampling based on load
       // This is a simplified version - in production, you'd track actual load
       const cpuUsage = process.cpuUsage();
       const loadFactor = Math.min(1, cpuUsage.user / 1000000000); // Normalize to 0-1
       const adjustedRate = rate * (1 - loadFactor * 0.5); // Reduce sampling under load
       return Math.random() < adjustedRate;
+    }
       
     default:
       return Math.random() < rate;
@@ -308,6 +269,9 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
   const env = process.env as EnvironmentConfig;
   
   const config: any = {};
+  if (env.LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS !== undefined) {
+    config.indexCorrelationIds = env.LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS !== 'false';
+  }
   
   // Transport configuration
   if (env.LOGS_INTERCEPTOR_URL || env.LOGS_INTERCEPTOR_TENANT_ID || env.LOGS_INTERCEPTOR_AUTH_TOKEN) {

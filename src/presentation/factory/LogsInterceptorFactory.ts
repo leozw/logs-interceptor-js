@@ -14,12 +14,18 @@ import { FileDeadLetterQueue, MemoryDeadLetterQueue } from '../../infrastructure
 import { LogFilter } from '../../infrastructure/filter/LogFilter';
 import { ConsoleInterceptor } from '../../infrastructure/interceptors/ConsoleInterceptor';
 import { TransportFactory } from '../../infrastructure/transport/TransportFactory';
+import { MatcherPolicy } from '../../infrastructure/privacy/MatcherPolicy';
+import { ownedConfiguration } from '../../infrastructure/memory/OwnedConfiguration';
 
 export class LogsInterceptorFactory {
-  static create(config: ResolvedLogsInterceptorConfig): {
+  static create(config: ResolvedLogsInterceptorConfig, preparedMatcher?: MatcherPolicy): {
     logger: ILogger;
     consoleInterceptor?: ConsoleInterceptor;
   } {
+    config = ownedConfiguration(config);
+    const matcher = preparedMatcher ?? new MatcherPolicy(config.filter);
+    matcher.assertReady();
+    const filter = new LogFilter(config.filter, matcher);
     // Create context provider
     const contextProvider = new AsyncLocalStorageContextProvider();
 
@@ -79,9 +85,6 @@ export class LogsInterceptorFactory {
     // Create buffer
     const buffer = new MemoryBuffer(config.buffer);
 
-    // Create filter
-    const filter = new LogFilter(config.filter);
-
     // Create log service (this will setup the flush callback in buffer)
     const logger = new LogService(
       filter,
@@ -94,6 +97,7 @@ export class LogsInterceptorFactory {
         environment: config.environment,
         labels: config.labels,
         dynamicLabels,
+        indexCorrelationIds: config.indexCorrelationIds,
         enableMetrics: config.enableMetrics,
       }
     );
@@ -108,6 +112,11 @@ export class LogsInterceptorFactory {
       consoleInterceptor.enable();
     }
 
+    const destroy = logger.destroy.bind(logger);
+    logger.destroy = async () => {
+      consoleInterceptor?.disable();
+      try { await destroy(); } finally { filter.close(); }
+    };
     return { logger, consoleInterceptor };
   }
 }

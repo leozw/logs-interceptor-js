@@ -40,6 +40,7 @@ export class TransportFactory {
       {
         maxRetries: config.transport.maxRetries,
         retryDelay: config.transport.retryDelay,
+        timeout: config.transport.timeout,
       },
       circuitBreaker,
       dlq

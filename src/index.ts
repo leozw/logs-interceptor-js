@@ -7,6 +7,7 @@ import { HealthStatus, ILogger, LoggerMetrics } from './domain/interfaces/ILogge
 import { LogLevel } from './domain/value-objects/LogLevel';
 import { LogsInterceptorFactory } from './presentation/factory/LogsInterceptorFactory';
 import { loadConfigFromEnv, mergeConfigs } from './utils';
+import { MatcherPolicy } from './infrastructure/privacy/MatcherPolicy';
 
 export * from './infrastructure/integrations';
 
@@ -36,7 +37,10 @@ export function init(
     mergedConfig as LogsInterceptorConfig
   );
 
-  // Destroy existing instance if it exists
+  const matcher = new MatcherPolicy(resolvedConfig.filter);
+  matcher.assertReady();
+
+  // Complete plan validation precedes retirement of the previous healthy logger.
   if (globalInstance) {
     globalInstance.destroy().catch(() => {
       // Ignore errors during cleanup
@@ -44,7 +48,14 @@ export function init(
   }
 
   // Create new instance using factory
-  const { logger } = LogsInterceptorFactory.create(resolvedConfig);
+  let logger: ILogger;
+  try { ({ logger } = LogsInterceptorFactory.create(resolvedConfig, matcher)); }
+  catch (error) { matcher.close(); throw error; }
+  const destroyOwned = logger.destroy.bind(logger);
+  logger.destroy = async () => {
+    if (globalInstance === logger) globalInstance = null;
+    await destroyOwned();
+  };
   globalInstance = logger;
 
   return logger;
@@ -73,8 +84,9 @@ export function isInitialized(): boolean {
  */
 export async function destroy(): Promise<void> {
   if (globalInstance) {
-    await globalInstance.destroy();
+    const owned = globalInstance;
     globalInstance = null;
+    await owned.destroy();
   }
 }
 
@@ -83,6 +95,9 @@ export async function destroy(): Promise<void> {
  * This allows the logger to work automatically when loaded via NODE_OPTIONS
  */
 function autoInit(): void {
+  if (process.env.LOGS_INTERCEPTOR_INTERNAL_WORKER === 'true') return;
+  // The preload owns full configuration; do not create a transient default instance.
+  if ((globalThis as typeof globalThis & { __LOGS_INTERCEPTOR_PRELOADING?: boolean }).__LOGS_INTERCEPTOR_PRELOADING) return;
   // Only auto-initialize if we have the required environment variables
   const envConfig = loadConfigFromEnv();
 
@@ -201,10 +216,7 @@ export const logger = {
    * Destroy the logger
    */
   destroy: async (): Promise<void> => {
-    if (globalInstance) {
-      await globalInstance.destroy();
-      globalInstance = null;
-    }
+    await destroy();
   },
 };
 

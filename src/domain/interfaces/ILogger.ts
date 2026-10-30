@@ -45,6 +45,7 @@ export interface LoggerMetrics {
 }
 
 export interface HealthStatus {
+  readonly rateLimitCodes?: readonly string[];
   readonly healthy: boolean;
   readonly lastSuccessfulFlush: number;
   readonly consecutiveErrors: number;
@@ -53,4 +54,5 @@ export interface HealthStatus {
   memoryUsageMB: number;
   circuitBreakerState: 'closed' | 'open' | 'half-open';
   lastError?: string;
+  readonly privacyCodes?: readonly string[];
 }

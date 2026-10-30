@@ -1,0 +1,69 @@
+name: Legacy 3.0 Shared Matcher Candidate CI
+on:
+  push:
+    branches: [audit/legacy-2.1.7-20261029]
+  pull_request:
+    branches: [audit/legacy-2.1.6-recovered-20261029]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 24.x, 26.x]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          check-latest: true
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run test:types
+      - run: npm test
+      - run: node tests/jest-port-inventory.cjs
+      - run: npm audit --omit=dev
+      - name: Reject stale build outputs
+        run: node tests/build-clean.cjs
+      - name: Pack reviewed legacy identity without publishing
+        run: node tests/pack-receipt.cjs
+      - name: Fresh installed archive consumer with exact file hashes
+        run: node tests/packed-consumer.cjs
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: legacy-candidate-${{ matrix.node-version }}
+          path: release/3.0.0/
+          if-no-files-found: error
+  minimum:
+    name: Actual minimum Node22.0.0
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.x
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:types
+      - run: node tests/pack-receipt.cjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.0.0
+      - run: node --test tests/*.test.cjs
+      - run: node tests/packed-consumer.cjs
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: legacy-minimum-22.0.0
+          path: release/3.0.0/
+          if-no-files-found: error

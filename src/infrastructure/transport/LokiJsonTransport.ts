@@ -9,6 +9,7 @@ import { ILogTransport, TransportHealth, TransportMetrics } from '../../domain/i
 import { ICompressor } from '../compression';
 import { CompressorFactory } from '../compression/CompressorFactory';
 import { WorkerPool } from '../workers';
+import { RetryGate, responseError, sendScope } from './RetryPolicy';
 
 interface LokiStream {
   readonly stream: Record<string, string>;
@@ -20,6 +21,7 @@ interface LokiPayload {
 }
 
 export class LokiJsonTransport implements ILogTransport {
+  private retryGate = new RetryGate();
   private client: Pool;
   private health: TransportHealth;
   private compressor: ICompressor;
@@ -74,22 +76,27 @@ export class LokiJsonTransport implements ILogTransport {
       keepAliveMaxTimeout: 600000,
       headersTimeout: config.timeout ?? 5000,
       bodyTimeout: config.timeout ?? 5000,
+      maxResponseSize: 65536,
+      connect: { timeout: config.timeout ?? 5000 },
     });
   }
 
-  async send(entries: LogEntry[]): Promise<void> {
+  async send(entries: LogEntry[], signal?: AbortSignal): Promise<void> {
     if (entries.length === 0) return;
 
     const startTime = performance.now();
     this.metrics.totalSends++;
+    const scope = sendScope(this.config.timeout ?? 5000, [this.retryGate.signal(), ...(signal ? [signal] : [])]);
 
     try {
+      await this.retryGate.wait(scope.deadline, scope.signal);
       // Format payload
       let payload: any;
       if (this.workerPool && entries.length > 50) {
         try {
-          payload = await this.workerPool.execute('format', entries);
+          payload = await this.workerPool.execute('format', entries, undefined, scope.signal);
         } catch (error) {
+          scope.signal.throwIfAborted();
           payload = this.formatForLoki(entries);
         }
       } else {
@@ -102,15 +109,16 @@ export class LokiJsonTransport implements ILogTransport {
       // Compress
       let compressedData: Buffer;
       const compressionStart = performance.now();
-      if (this.workerPool && jsonData.length > 10000) {
+      if (this.workerPool && jsonData.length > 10000 && this.compressor.getName() !== 'none') {
         try {
           // Use 'gzip' or 'brotli' based on compressor
           const type = this.compressor.getName() === 'brotli' ? 'brotli' : 'gzip';
           compressedData = await this.workerPool.execute('compress', jsonData, {
             compressionType: type,
             compressionLevel: this.config.compressionLevel,
-          });
+          }, scope.signal);
         } catch (error) {
+          scope.signal.throwIfAborted();
           compressedData = await this.compressor.compress(jsonData);
         }
       } else {
@@ -142,11 +150,14 @@ export class LokiJsonTransport implements ILogTransport {
         method: 'POST',
         headers,
         body: compressedData,
+        signal: scope.signal,
       });
 
       if (response.statusCode >= 300) {
-        const body = await response.body.text();
-        throw new Error(`Loki responded with ${response.statusCode}: ${body}`);
+        const failure = responseError(response.statusCode, response.headers, this.config.retryDelay ?? 1000);
+        this.retryGate.observe(failure);
+        await response.body.text().catch(() => {});
+        throw failure;
       } else {
         await response.body.text();
       }
@@ -157,7 +168,7 @@ export class LokiJsonTransport implements ILogTransport {
     } catch (error) {
       this.recordFailure(error as Error);
       throw error;
-    }
+    } finally { scope.close(); }
   }
 
   getMetrics(): TransportMetrics {
@@ -204,14 +215,15 @@ export class LokiJsonTransport implements ILogTransport {
   }
 
   getHealth(): TransportHealth {
-    return { ...this.health };
+    return { ...this.health, rateLimitCodes: this.retryGate.diagnostics() };
   }
 
   async destroy(): Promise<void> {
+    this.retryGate.close();
     if (this.workerPool) {
       await this.workerPool.destroy();
     }
-    await this.client.close();
+    await this.client.destroy();
   }
 
   private recordSuccess(duration: number): void {

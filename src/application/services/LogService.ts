@@ -15,6 +15,9 @@ import { ILogTransport } from '../../domain/interfaces/ILogTransport';
 import type { LogLevel } from '../../domain/value-objects/LogLevel';
 import { LogLevelVO } from '../../domain/value-objects/LogLevel';
 import { MetricsCollector } from '../../infrastructure/metrics/MetricsCollector';
+import { boundedSnapshot } from '../../infrastructure/memory/BoundedSnapshot';
+import type { MatcherExecution } from '../../infrastructure/privacy/MatcherPolicy';
+import { ownedConfiguration } from '../../infrastructure/memory/OwnedConfiguration';
 
 export class LogService implements ILogger {
   private metrics: LoggerMetrics & {
@@ -32,6 +35,9 @@ export class LogService implements ILogger {
   };
   private startTime: number;
   private metricsCollector: MetricsCollector;
+  private pendingFlush?: Promise<void>;
+  private closing = false;
+  private destroyPromise?: Promise<void>;
 
   constructor(
     private readonly filter: ILogFilter,
@@ -44,9 +50,11 @@ export class LogService implements ILogger {
       environment: string;
       labels: Record<string, string>;
       dynamicLabels: Record<string, () => string | number>;
+      indexCorrelationIds?: boolean;
       enableMetrics: boolean;
     }
   ) {
+    this.config = ownedConfiguration(config);
     this.startTime = Date.now();
     this.metrics = this.initializeMetrics();
     this.metricsCollector = new MetricsCollector();
@@ -102,21 +110,29 @@ export class LogService implements ILogger {
   }
 
   log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
+    if (this.closing) return;
     if (!this.filter.isLevelEnabled(level)) {
       return;
     }
 
-    const entry = this.createLogEntry(level, message, context);
-    const filteredEntry = this.filter.filter(entry);
-
-    if (!this.filter.shouldProcess(filteredEntry)) {
+    let execution: MatcherExecution | undefined;
+    try {
+      execution = this.filter.beginRecord?.();
+      const entry = this.createLogEntry(level, message, context);
+      const filteredEntry = this.filter.filter(entry, execution);
+      if (!this.filter.shouldProcess(filteredEntry, execution)) {
+        this.metrics.logsDropped++;
+        return;
+      }
+      this.buffer.add(filteredEntry);
+      this.metrics.logsProcessed++;
+      this.updateMetrics();
+    } catch {
       this.metrics.logsDropped++;
-      return;
+      this.metrics.errorCount++;
+    } finally {
+      try { execution?.close(); } catch { this.metrics.errorCount++; }
     }
-
-    this.buffer.add(filteredEntry);
-    this.metrics.logsProcessed++;
-    this.updateMetrics();
   }
 
   trackEvent(eventName: string, properties?: Record<string, unknown>): void {
@@ -155,6 +171,18 @@ export class LogService implements ILogger {
     const spanContext = trace.getActiveSpan()?.spanContext();
     const traceId = spanContext?.traceId || (dynamicLabels.trace_id as string);
     const spanId = spanContext?.spanId || (dynamicLabels.span_id as string);
+    const labels: Record<string, string> = {
+      app: this.config.appName,
+      version: this.config.version,
+      environment: this.config.environment,
+      level,
+      hostname: os.hostname(),
+      pid: String(process.pid),
+      ...this.config.labels,
+      ...(this.config.indexCorrelationIds === false
+        ? Object.fromEntries(Object.entries(dynamicLabels).filter(([key]) => !['trace_id', 'span_id', 'request_id'].includes(key)))
+        : dynamicLabels),
+    };
 
     return new LogEntryEntity(
       logId,
@@ -162,22 +190,13 @@ export class LogService implements ILogger {
       level,
       message,
       {
-        ...asyncContext,
-        ...context,
+        ...boundedSnapshot(asyncContext) as Record<string, unknown>,
+        ...boundedSnapshot(context) as Record<string, unknown>,
       },
       traceId,
       spanId,
       dynamicLabels.request_id,
-      {
-        app: this.config.appName,
-        version: this.config.version,
-        environment: this.config.environment,
-        level: level,
-        hostname: os.hostname(),
-        pid: String(process.pid),
-        ...this.config.labels,
-        ...dynamicLabels,
-      },
+      labels,
       {
         memoryUsage: this.metrics.memoryUsage,
         cpuUsage: this.metrics.cpuUsage,
@@ -186,6 +205,12 @@ export class LogService implements ILogger {
   }
 
   async flush(): Promise<void> {
+    if (this.pendingFlush) return this.pendingFlush;
+    this.pendingFlush = this.flushBatch().finally(() => { this.pendingFlush = undefined; });
+    return this.pendingFlush;
+  }
+
+  private async flushBatch(): Promise<void> {
     if (this.buffer.size() === 0) {
       return;
     }
@@ -221,9 +246,11 @@ export class LogService implements ILogger {
 
     // Get transport metrics if available
     const transportMetrics = (this.transport as any).getMetrics?.();
+    const bufferDrops = this.buffer.getMetrics().droppedEntries ?? 0;
 
     return {
       ...this.metrics,
+      logsDropped: Math.min(Number.MAX_SAFE_INTEGER, this.metrics.logsDropped + bufferDrops),
       bufferSize: this.buffer.size(),
       latency: {
         p50: latencyMetrics.p50,
@@ -243,10 +270,12 @@ export class LogService implements ILogger {
   getHealth(): HealthStatus {
     const bufferMetrics = this.buffer.getMetrics();
     const transportHealth = this.transport.getHealth();
+    const privacyCodes = this.filter.privacyDiagnostics?.() ?? [];
 
     return {
       healthy:
         this.metrics.errorCount < 10 &&
+        privacyCodes.length === 0 &&
         transportHealth.healthy,
       lastSuccessfulFlush: this.metrics.lastFlushTime,
       consecutiveErrors: this.metrics.errorCount,
@@ -255,12 +284,28 @@ export class LogService implements ILogger {
       memoryUsageMB: this.metrics.memoryUsage,
       circuitBreakerState: transportHealth.healthy ? 'closed' : 'open',
       lastError: transportHealth.errorMessage,
+      privacyCodes,
+      rateLimitCodes: transportHealth.rateLimitCodes ?? [],
     };
   }
 
   async destroy(): Promise<void> {
-    await this.flush();
-    await this.transport.destroy();
+    if (this.destroyPromise) return this.destroyPromise;
+    this.closing = true;
+    this.destroyPromise = (async () => {
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          (async () => { await this.flush(); await this.flush(); })(),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Legacy log drain deadline exceeded')), 5000); }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+        this.buffer.clear();
+        try { await this.transport.destroy(); } finally { this.filter.close?.(); }
+      }
+    })();
+    return this.destroyPromise;
   }
 
   private updateMetrics(): void {

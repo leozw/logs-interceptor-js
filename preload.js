@@ -5,6 +5,7 @@
 
 (function() {
   'use strict';
+  if (process.env.LOGS_INTERCEPTOR_INTERNAL_WORKER === 'true') return;
 
   // Only run if we're not already in a preload context
   if (global.__LOGS_INTERCEPTOR_PRELOADED) {
@@ -15,7 +16,10 @@
 
   try {
     // Load the main module
-    const logsInterceptor = require('./dist/index.js');
+    let logsInterceptor;
+    global.__LOGS_INTERCEPTOR_PRELOADING = true;
+    try { logsInterceptor = require('./dist/index.js'); }
+    finally { delete global.__LOGS_INTERCEPTOR_PRELOADING; }
     
     // Check for required environment variables
     const url = process.env.LOGS_INTERCEPTOR_URL;
@@ -53,7 +57,7 @@
         tenantId: tenantId,
         authToken: process.env.LOGS_INTERCEPTOR_AUTH_TOKEN,
         timeout: parseInt(process.env.LOGS_INTERCEPTOR_TIMEOUT) || 5000,
-        maxRetries: parseInt(process.env.LOGS_INTERCEPTOR_MAX_RETRIES) || 3,
+        maxRetries: Number.isFinite(Number(process.env.LOGS_INTERCEPTOR_MAX_RETRIES)) ? Number(process.env.LOGS_INTERCEPTOR_MAX_RETRIES) : 3,
         retryDelay: parseInt(process.env.LOGS_INTERCEPTOR_RETRY_DELAY) || 1000,
         compression: process.env.LOGS_INTERCEPTOR_COMPRESSION !== 'false' ? (process.env.LOGS_INTERCEPTOR_COMPRESSION || 'gzip') : 'none',
         compressionLevel: parseInt(process.env.LOGS_INTERCEPTOR_COMPRESSION_LEVEL) || 6,
@@ -81,7 +85,7 @@
         levels: process.env.LOGS_INTERCEPTOR_LOG_LEVEL ? 
           process.env.LOGS_INTERCEPTOR_LOG_LEVEL.split(',').map(l => l.trim()) : 
           ['debug', 'info', 'warn', 'error', 'fatal'],
-        samplingRate: parseFloat(process.env.LOGS_INTERCEPTOR_SAMPLING_RATE) || 1.0,
+        samplingRate: Number.isFinite(parseFloat(process.env.LOGS_INTERCEPTOR_SAMPLING_RATE)) ? parseFloat(process.env.LOGS_INTERCEPTOR_SAMPLING_RATE) : 1.0,
         sanitize: process.env.LOGS_INTERCEPTOR_SANITIZE !== 'false',
         maxMessageLength: parseInt(process.env.LOGS_INTERCEPTOR_MAX_MESSAGE_LENGTH) || 8192
       },
@@ -104,6 +108,7 @@
       // Features
       interceptConsole: process.env.LOGS_INTERCEPTOR_INTERCEPT_CONSOLE !== 'false',
       preserveOriginalConsole: process.env.LOGS_INTERCEPTOR_PRESERVE_CONSOLE !== 'false',
+      indexCorrelationIds: process.env.LOGS_INTERCEPTOR_INDEX_CORRELATION_IDS !== 'false',
       enableMetrics: process.env.LOGS_INTERCEPTOR_ENABLE_METRICS !== 'false',
       enableHealthCheck: process.env.LOGS_INTERCEPTOR_ENABLE_HEALTH_CHECK !== 'false',
       debug: debug,
@@ -143,7 +148,7 @@
       console.log('[logs-interceptor] Preload: Successfully initialized!');
       console.log(`[logs-interceptor] App: ${config.appName}`);
       console.log(`[logs-interceptor] Environment: ${config.environment}`);
-      console.log(`[logs-interceptor] Loki URL: ${config.transport.url}`);
+      console.log('[logs-interceptor] Loki endpoint configured');
       console.log(`[logs-interceptor] Console interception: ${config.interceptConsole ? 'enabled' : 'disabled'}`);
     }
 
@@ -158,14 +163,21 @@
       uptime: process.uptime()
     });
 
-    // Setup graceful shutdown
+    // Owned handlers preserve an application's signal policy and normal signal termination.
+    const handlers = new Map();
+    const removeHandlers = () => {
+      for (const [signal, handler] of handlers) process.off(signal, handler);
+      handlers.clear();
+    };
+    const destroy = interceptor.destroy.bind(interceptor);
+    interceptor.destroy = async () => { removeHandlers(); return destroy(); };
     const gracefulShutdown = async (signal) => {
+      const applicationOwnsSignal = process.listenerCount(signal) > 0;
       if (debug) {
         console.log(`[logs-interceptor] Preload: Graceful shutdown (${signal})`);
       }
       
       try {
-        await interceptor.flush();
         await interceptor.destroy();
         if (debug) {
           console.log('[logs-interceptor] Preload: Cleanup completed');
@@ -175,10 +187,14 @@
           console.error('[logs-interceptor] Preload: Cleanup error:', error.message);
         }
       }
+      if (!applicationOwnsSignal && process.listenerCount(signal) === 0) process.kill(process.pid, signal);
     };
 
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    for (const signal of ['SIGTERM', 'SIGINT']) {
+      const handler = () => { void gracefulShutdown(signal); };
+      handlers.set(signal, handler);
+      process.prependOnceListener(signal, handler);
+    }
 
   } catch (error) {
     const debug = process.env.LOGS_INTERCEPTOR_DEBUG === 'true';
@@ -188,9 +204,9 @@
     if (debug) {
       console.error('[logs-interceptor] Stack trace:', error.stack);
       console.error('[logs-interceptor] Environment variables:', {
-        LOGS_INTERCEPTOR_URL: process.env.LOGS_INTERCEPTOR_URL,
-        LOGS_INTERCEPTOR_TENANT_ID: process.env.LOGS_INTERCEPTOR_TENANT_ID,
-        LOGS_INTERCEPTOR_APP_NAME: process.env.LOGS_INTERCEPTOR_APP_NAME
+        LOGS_INTERCEPTOR_URL: !!process.env.LOGS_INTERCEPTOR_URL,
+        LOGS_INTERCEPTOR_TENANT_ID: !!process.env.LOGS_INTERCEPTOR_TENANT_ID,
+        LOGS_INTERCEPTOR_APP_NAME: !!process.env.LOGS_INTERCEPTOR_APP_NAME
       });
     }
     
