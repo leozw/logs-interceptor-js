@@ -1,3 +1,6 @@
+import assert from 'node:assert/strict';
+import { lessThan } from '../../test-support/assertions';
+import { describe, it, mock } from 'node:test';
 import { LogService } from '../application/services/LogService';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -8,7 +11,7 @@ const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 describe('memory safety', () => {
   it('coalesces immediate flush requests', async () => {
-    const onFlushRequested = jest.fn();
+    const onFlushRequested = mock.fn();
     const buffer = new MemoryBuffer({
       maxSize: 1,
       flushInterval: 60_000,
@@ -30,7 +33,7 @@ describe('memory safety', () => {
     }
 
     await nextTurn();
-    expect(onFlushRequested).toHaveBeenCalledTimes(1);
+    assert.strictEqual((onFlushRequested).mock.calls.length, 1);
     buffer.destroy();
   });
 
@@ -58,41 +61,39 @@ describe('memory safety', () => {
       metadata: {},
     });
 
-    expect(JSON.stringify(filtered.context)).toContain('truncated');
-    expect(Buffer.byteLength(JSON.stringify(filtered.context), 'utf8')).toBeLessThan(1024);
+    assert.ok((JSON.stringify(filtered.context)).includes('truncated'));
+    lessThan(Buffer.byteLength(JSON.stringify(filtered.context), 'utf8'), 1024);
   });
 
   it('drops old queued batches when the flush backlog reaches its limit', async () => {
     const transportResolvers: Array<() => void> = [];
     const transport = {
-      send: jest.fn(
-        () => new Promise<void>((resolve) => transportResolvers.push(resolve))
-      ),
-      isAvailable: jest.fn(async () => true),
-      getHealth: jest.fn(() => ({ healthy: true, consecutiveFailures: 0 })),
-      destroy: jest.fn(async () => undefined),
+      send: mock.fn(() => new Promise<void>((resolve) => transportResolvers.push(resolve))),
+      isAvailable: mock.fn(async () => true),
+      getHealth: mock.fn(() => ({ healthy: true, consecutiveFailures: 0 })),
+      destroy: mock.fn(async () => undefined),
     };
     const buffer = {
-      size: jest.fn(() => 0),
-      flush: jest.fn(() => []),
-      getMetrics: jest.fn(() => ({
+      size: mock.fn(() => 0),
+      flush: mock.fn(() => []),
+      getMetrics: mock.fn(() => ({
         size: 0,
         maxSize: 10,
         memoryUsageMB: 0,
         droppedEntries: 0,
       })),
-      destroy: jest.fn(),
-      setFlushCallback: jest.fn(),
+      destroy: mock.fn(),
+      setFlushCallback: mock.fn(),
     };
     const filter = {
-      isLevelEnabled: jest.fn(() => true),
-      shouldProcess: jest.fn(() => true),
-      filter: jest.fn((entry) => entry),
+      isLevelEnabled: mock.fn(() => true),
+      shouldProcess: mock.fn(() => true),
+      filter: mock.fn((entry) => entry),
     };
     const contextProvider = {
-      getContext: jest.fn(() => ({})),
-      runWithContext: jest.fn((_context, fn) => fn()),
-      runWithContextAsync: jest.fn((_context, fn) => fn()),
+      getContext: mock.fn(() => ({})),
+      runWithContext: mock.fn((_context, fn) => fn()),
+      runWithContextAsync: mock.fn((_context, fn) => fn()),
     };
     const service = new LogService(
       filter as any,
@@ -121,8 +122,8 @@ describe('memory safety', () => {
     }]);
 
     const pending = [enqueue('1'), enqueue('2'), enqueue('3'), enqueue('4')];
-    expect((service as any).flushQueue).toHaveLength(2);
-    expect(service.getMetrics().droppedByBackpressure).toBe(1);
+    assert.strictEqual(((service as any).flushQueue).length, 2);
+    assert.strictEqual((service.getMetrics().droppedByBackpressure), 1);
 
     for (let index = 0; index < 3; index++) {
       transportResolvers.shift()?.();
@@ -130,7 +131,7 @@ describe('memory safety', () => {
     }
 
     await Promise.all(pending);
-    expect(service.getMetrics().pendingFlushBatches).toBe(0);
-    expect(service.getMetrics().inFlightFlushes).toBe(0);
+    assert.strictEqual((service.getMetrics().pendingFlushBatches), 0);
+    assert.strictEqual((service.getMetrics().inFlightFlushes), 0);
   });
 });

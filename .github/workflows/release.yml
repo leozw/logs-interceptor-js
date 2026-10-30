@@ -45,9 +45,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm test -- --runInBand
+      - run: npm test
+      - run: npm run test:port
       - run: npm run test:matcher
       - run: npm audit --omit=dev
+      - run: npm audit
       - name: Pack reviewed artifact
         run: node scripts/release-guard.cjs pack
         env:

@@ -1,3 +1,6 @@
+import assert from 'node:assert/strict';
+import { greaterOrEqual, rejectsToThrow } from '../../test-support/assertions';
+import { afterEach, describe, it, mock } from 'node:test';
 /**
  * Integration Tests for logs-interceptor
  */
@@ -8,7 +11,7 @@ describe('Logs Interceptor - Integration Tests', () => {
     await destroy().catch(() => {
       // ignore cleanup errors in tests
     });
-    jest.clearAllMocks();
+    mock.reset();
   });
 
   describe('Initialization', () => {
@@ -25,12 +28,12 @@ describe('Logs Interceptor - Integration Tests', () => {
         environment: 'test',
       });
 
-      expect(instance).toBeDefined();
-      expect(getLogger()).toBe(instance);
+      assert.notStrictEqual((instance), undefined);
+      assert.strictEqual((getLogger()), instance);
     });
 
     it('should throw error with invalid config', () => {
-      expect(() => {
+      assert.throws((() => {
         init({
           transport: {
             url: '',
@@ -39,7 +42,7 @@ describe('Logs Interceptor - Integration Tests', () => {
           },
           appName: 'test',
         });
-      }).toThrow();
+      }));
     });
   });
 
@@ -56,12 +59,12 @@ describe('Logs Interceptor - Integration Tests', () => {
         interceptConsole: false,
       });
 
-      expect(() => {
+      assert.doesNotThrow((() => {
         instance.debug('Debug message');
         instance.info('Info message');
         instance.warn('Warning message');
         instance.error('Error message');
-      }).not.toThrow();
+      }));
     });
 
     it('should support context propagation API', async () => {
@@ -85,7 +88,7 @@ describe('Logs Interceptor - Integration Tests', () => {
       });
 
       const metrics = instance.getMetrics();
-      expect(metrics.logsProcessed).toBeGreaterThanOrEqual(2);
+      greaterOrEqual(metrics.logsProcessed, 2);
     });
   });
 
@@ -109,7 +112,7 @@ describe('Logs Interceptor - Integration Tests', () => {
       });
 
       instance.info('Test log');
-      await expect(instance.flush()).rejects.toThrow();
+      await rejectsToThrow(instance.flush());
     });
   });
 
@@ -127,11 +130,11 @@ describe('Logs Interceptor - Integration Tests', () => {
       });
 
       const metrics = instance.getMetrics();
-      expect(metrics).toBeDefined();
-      expect(metrics.logsProcessed).toBeGreaterThanOrEqual(0);
-      expect(metrics.bufferSize).toBeGreaterThanOrEqual(0);
-      expect(metrics.droppedByBackpressure).toBeGreaterThanOrEqual(0);
-      expect(metrics.droppedByDlq).toBeGreaterThanOrEqual(0);
+      assert.notStrictEqual((metrics), undefined);
+      greaterOrEqual(metrics.logsProcessed, 0);
+      greaterOrEqual(metrics.bufferSize, 0);
+      greaterOrEqual(metrics.droppedByBackpressure, 0);
+      greaterOrEqual(metrics.droppedByDlq, 0);
     });
 
     it('should return health status', () => {
@@ -147,9 +150,9 @@ describe('Logs Interceptor - Integration Tests', () => {
       });
 
       const health = instance.getHealth();
-      expect(health).toBeDefined();
-      expect(typeof health.healthy).toBe('boolean');
-      expect(health.uptime).toBeGreaterThanOrEqual(0);
+      assert.notStrictEqual((health), undefined);
+      assert.strictEqual((typeof health.healthy), 'boolean');
+      greaterOrEqual(health.uptime, 0);
     });
   });
 
@@ -168,7 +171,7 @@ describe('Logs Interceptor - Integration Tests', () => {
         interceptConsole: false,
       });
 
-      expect(instance).toBeDefined();
+      assert.notStrictEqual((instance), undefined);
     });
 
     it('should support Gzip compression', () => {
@@ -184,7 +187,7 @@ describe('Logs Interceptor - Integration Tests', () => {
         interceptConsole: false,
       });
 
-      expect(instance).toBeDefined();
+      assert.notStrictEqual((instance), undefined);
     });
 
     it('should support Dead Letter Queue', () => {
@@ -204,7 +207,7 @@ describe('Logs Interceptor - Integration Tests', () => {
         },
       });
 
-      expect(instance).toBeDefined();
+      assert.notStrictEqual((instance), undefined);
     });
   });
 });

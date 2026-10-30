@@ -342,10 +342,29 @@ MIT
 
 ## Maintainer Release Gates
 
+Source tests use compiled TypeScript and the standard `node:test` / `node:assert`
+runner, serialized for global logger, console, environment and provider state.
+`npm test` runs the original 67 expanded cases; `npm run test:port` checks the
+original title/assertion inventory (351 executed assertions, 144 source sites)
+and separate numeric, rejection, cross-realm and mock restoration controls.
+The limited helpers preserve the used Jest operator contracts, including
+number/bigint type checks and Error/throwing-function promise rejection matching. The original
+Jest configuration remains historical, not active; Jest and its development
+dependency tree are no longer required. `npm run test:watch` uses TypeScript's
+watch compiler and serial reruns. Generated `.test-dist` is not packaged.
+
+This removes the affected development dependency path for
+[CVE-2026-93753 / GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4),
+not the upstream vulnerability itself or already-installed older package graphs.
+The advisory has no patched deepmerge version. Production and full-development
+audits run separately; a clean audit is not a claim that all vulnerabilities are
+known or absent.
+
 The manual `.github/workflows/release.yml` accepts only `main`, an exact current
 SHA, `2.x` version and `publish elven-logs-interceptor@VERSION next` confirmation.
 It requires successful Node 22/24/26 and actual minimum 22.0.0 main-push CI for
-that SHA, a public matching repository, a clean production audit and the validated
+that SHA, a public matching repository, separate clean production/development
+audits and the validated
 archive hash. `next` is enforced in metadata, guard and publish command; `latest`
 is not promoted. Only the final hosted publish
 job receives `NPM_TOKEN`; `id-token: write` and `--provenance` remain mandatory.

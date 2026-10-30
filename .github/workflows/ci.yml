@@ -37,7 +37,13 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npm test -- --runInBand --detectOpenHandles
+        run: npm test
+      - name: Original matcher, callback and mock assertion inventory
+        run: npm run test:port
+      - name: Production and full development dependency advisories
+        run: |
+          npm audit --omit=dev
+          npm audit
       - name: Build clean runtime and portable matcher regression
         run: |
           npm run build
@@ -59,5 +65,7 @@ jobs:
           node-version: 22.0.0
       - name: Actual minimum production artifact, not the development toolchain floor
         run: |
+          node scripts/test.cjs
+          node scripts/test-inventory.cjs
           node --test scripts/matcher-security.test.cjs scripts/matcher-contracts.test.cjs
           node scripts/qualify-consumer.cjs
