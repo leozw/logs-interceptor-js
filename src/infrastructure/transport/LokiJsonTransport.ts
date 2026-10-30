@@ -9,12 +9,14 @@ import {
   ILogTransport,
   TransportHealth,
   TransportMetrics,
+  TransportDispatch,
 } from '../../domain/interfaces/ILogTransport';
 import { ICompressor } from '../compression';
 import { CompressorFactory } from '../compression/CompressorFactory';
 import { WorkerPool } from '../workers';
 import { internalWarn } from '../../utils';
 import { consumeResponse } from './consumeResponse';
+import { retryAfterNotBefore } from './RetryAfter';
 
 interface LokiStream {
   readonly stream: Record<string, string>;
@@ -26,6 +28,7 @@ interface LokiPayload {
 }
 
 interface RetryableTransportError extends Error {
+  retryAfterNotBefore?: number;
   statusCode?: number;
   retryable?: boolean;
 }
@@ -95,7 +98,10 @@ export class LokiJsonTransport implements ILogTransport {
     }
   }
 
-  async send(entries: LogEntry[]): Promise<void> {
+  async send(entries: LogEntry[], signal?: AbortSignal,
+    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void,
+    dispatch?: TransportDispatch): Promise<void> {
+    signal?.throwIfAborted();
     if (entries.length === 0) return;
 
     const startTime = performance.now();
@@ -105,8 +111,9 @@ export class LokiJsonTransport implements ILogTransport {
       let payload: LokiPayload;
       if (this.workerPool && entries.length > 50) {
         try {
-          payload = await this.workerPool.execute('format', entries);
+          payload = await this.workerPool.execute('format', entries, undefined, signal);
         } catch {
+          signal?.throwIfAborted();
           payload = this.formatForLoki(entries);
         }
       } else {
@@ -137,14 +144,15 @@ export class LokiJsonTransport implements ILogTransport {
               {
                 compressionType: type,
                 compressionLevel: this.config.compressionLevel,
-              }
+              }, signal
             );
             body = Buffer.from(workerBody);
           } catch {
-            body = Buffer.from(await this.compressor.compress(jsonData));
+            signal?.throwIfAborted();
+            body = Buffer.from(await this.compressor.compress(jsonData, signal));
           }
         } else {
-          body = Buffer.from(await this.compressor.compress(jsonData));
+          body = Buffer.from(await this.compressor.compress(jsonData, signal));
         }
 
         compressionTime = performance.now() - compressionStart;
@@ -160,7 +168,7 @@ export class LokiJsonTransport implements ILogTransport {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Scope-OrgID': this.config.tenantId ?? '',
-        'User-Agent': 'logs-interceptor/3.0.0',
+        'User-Agent': 'elven-logs-interceptor/2.0.1',
         ...this.extraHeaders,
       };
 
@@ -175,13 +183,18 @@ export class LokiJsonTransport implements ILogTransport {
         }
       }
 
-      const response = await this.sendRequest(headers, body);
+      signal?.throwIfAborted();
+      const invokeRequest = () => this.sendRequest(headers, body, signal);
+      const response = await (dispatch ? dispatch(invokeRequest) : invokeRequest());
 
       if (response.statusCode >= 300) {
+        const notBefore = retryAfterNotBefore(response.headers['retry-after']);
+        if (response.statusCode === 429 || response.statusCode >= 500) observeRetryAfter?.(notBefore.notBefore, notBefore.invalid);
         await consumeResponse(response.body);
         throw this.createHttpError(
           `Loki responded with ${response.statusCode}`,
-          response.statusCode
+          response.statusCode,
+          notBefore.notBefore
         );
       }
 
@@ -238,14 +251,16 @@ export class LokiJsonTransport implements ILogTransport {
     };
   }
 
-  private async sendRequest(headers: Record<string, string>, body: Buffer) {
+  private async sendRequest(headers: Record<string, string>, body: Buffer, signal?: AbortSignal) {
+    const deadline = AbortSignal.timeout(this.timeoutMs);
+    const abort = signal ? AbortSignal.any([signal, deadline]) : deadline;
     if (this.client) {
       return this.client.request({
         path: this.endpointPath,
         method: 'POST',
         headers,
         body,
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: abort,
       });
     }
 
@@ -253,17 +268,18 @@ export class LokiJsonTransport implements ILogTransport {
       method: 'POST',
       headers,
       body,
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: abort,
       headersTimeout: this.timeoutMs,
       bodyTimeout: this.timeoutMs,
       maxRedirections: 0,
     });
   }
 
-  private createHttpError(message: string, statusCode: number): RetryableTransportError {
+  private createHttpError(message: string, statusCode: number, notBefore?: number): RetryableTransportError {
     const error = new Error(message) as RetryableTransportError;
     error.statusCode = statusCode;
     error.retryable = statusCode === 429 || statusCode >= 500;
+    if (error.retryable && notBefore !== undefined) error.retryAfterNotBefore = notBefore;
     return error;
   }
 

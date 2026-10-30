@@ -8,6 +8,8 @@ interface Task<T = any> {
   options?: any;
   resolve: (value: T) => void;
   reject: (error: Error) => void;
+  signal?: AbortSignal;
+  onAbort?: () => void;
 }
 export interface WorkerPoolConfig {
   readonly maxWorkers?: number;
@@ -40,6 +42,7 @@ export class WorkerPool {
   private failedTasks = 0;
   private destroyed = false;
   private destroyPromise?: Promise<void>;
+  private terminations = new Set<Promise<unknown>>();
 
   constructor(config: WorkerPoolConfig = {}) {
     this.maxWorkers = bounded(config.maxWorkers, 2, 16);
@@ -73,6 +76,7 @@ export class WorkerPool {
     this.active.delete(worker);
     clearTimeout(active.timer);
     worker.off('message', active.handler);
+    if (active.task.onAbort) active.task.signal?.removeEventListener('abort', active.task.onAbort);
     worker.unref();
     if (error) {
       this.failedTasks++;
@@ -89,21 +93,21 @@ export class WorkerPool {
       (item) => item !== worker,
     );
     this.settle(worker, error);
-    void worker.terminate().catch(() => {});
+    void this.terminate(worker);
     // Only replenish for queued work. Broken idle workers must not respawn forever.
-    if (!this.destroyed && this.queue.length) {
-      this.createWorker();
-      this.drainQueue();
-    }
+    this.replenish();
+    this.drainQueue();
   }
 
   async execute<T = any>(
     type: Task['type'],
     data: any,
     options?: any,
+    signal?: AbortSignal,
   ): Promise<T> {
+    signal?.throwIfAborted();
     if (this.destroyed) throw new Error('Worker pool destroyed');
-    if (!this.workers.size) this.createWorker();
+    if (!this.workers.size && !this.terminations.size) this.createWorker();
     if (
       !this.availableWorkers.length &&
       this.queue.length >= this.maxQueueSize
@@ -112,16 +116,59 @@ export class WorkerPool {
       throw new Error(`Worker queue limit reached (${this.maxQueueSize})`);
     }
     return new Promise<T>((resolve, reject) => {
-      this.queue.push({
+      const task: Task<T> = {
         id: ++this.totalTasks,
         type,
         data,
         options,
         resolve,
         reject,
-      });
+        signal,
+      };
+      task.onAbort = () => { void this.cancelTask(task); };
+      signal?.addEventListener('abort', task.onAbort, { once: true });
+      this.queue.push(task);
+      this.replenish();
       this.drainQueue();
     });
+  }
+
+  private terminate(worker: Worker): Promise<unknown> {
+    const pending = worker.terminate().catch(() => {}).finally(() => {
+      this.terminations.delete(pending);
+      this.replenish();
+      this.drainQueue();
+    });
+    this.terminations.add(pending);
+    return pending;
+  }
+
+  private async cancelTask(task: Task): Promise<void> {
+    const queued = this.queue.indexOf(task);
+    if (queued >= 0) {
+      this.queue.splice(queued, 1);
+    } else {
+      const running = [...this.active].find(([, value]) => value.task === task);
+      if (!running) return;
+      const [worker, active] = running;
+      this.active.delete(worker);
+      clearTimeout(active.timer);
+      worker.off('message', active.handler);
+      this.workers.delete(worker);
+      this.availableWorkers = this.availableWorkers.filter(item => item !== worker);
+      await this.terminate(worker);
+    }
+    if (task.onAbort) task.signal?.removeEventListener('abort', task.onAbort);
+    this.failedTasks++;
+    task.reject(task.signal?.reason ?? new Error('ELVEN_OPERATION_CANCELLED'));
+    this.replenish();
+    this.drainQueue();
+  }
+
+  private replenish(): void {
+    // Closing threads still count against capacity; only queued work replenishes.
+    while (!this.destroyed && this.queue.length > this.availableWorkers.length
+      && this.workers.size + this.terminations.size < this.maxWorkers) this.createWorker();
   }
 
   private drainQueue(): void {
@@ -181,6 +228,7 @@ export class WorkerPool {
     if (this.destroyPromise) return this.destroyPromise;
     this.destroyed = true;
     for (const task of this.queue) {
+      if (task.onAbort) task.signal?.removeEventListener('abort', task.onAbort);
       this.failedTasks++;
       task.reject(new Error('Worker pool destroyed'));
     }
@@ -191,7 +239,7 @@ export class WorkerPool {
     this.workers.clear();
     this.availableWorkers = [];
     this.destroyPromise = Promise.all(
-      workers.map((worker) => worker.terminate()),
+      [...workers.map((worker) => this.terminate(worker)), ...this.terminations],
     ).then(() => {});
     return this.destroyPromise;
   }

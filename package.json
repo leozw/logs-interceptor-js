@@ -1,6 +1,6 @@
 {
   "name": "elven-logs-interceptor",
-  "version": "1.1.1",
+  "version": "2.0.1",
   "description": "High-performance, production-ready log interceptor for Node.js applications with Loki and OTLP collector integration.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,14 +9,17 @@
     "preload.js"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/build.cjs",
     "build:watch": "tsc --watch",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "jest --watch",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "test": "node scripts/test.cjs",
+    "test:port": "node scripts/test-inventory.cjs",
+    "test:matcher": "node --test scripts/matcher-security.test.cjs scripts/matcher-contracts.test.cjs",
+    "test:consumer": "node scripts/qualify-consumer.cjs",
+    "test:watch": "node scripts/test-watch.cjs",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "dev": "ts-node src/index.ts",
-    "prepublishOnly": "npm run lint && npm run build && npm test -- --runInBand"
+    "prepublishOnly": "npm run lint && npm run build && npm test && npm run test:port && npm run test:matcher && npm run test:consumer"
   },
   "keywords": [
     "loki",
@@ -41,29 +44,27 @@
     "@opentelemetry/resources": "~2.12.0",
     "@opentelemetry/sdk-logs": "^0.223.0",
     "protobufjs": "^7.6.5",
-    "safe-regex2": "^5.1.2",
+    "@eslint-community/regexpp": "4.12.2",
+    "re2js": "2.9.1",
     "snappy": "^7.2.2",
     "undici": "^6.29.1",
     "winston-transport": "^4.9.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/jest": "^30.0.0",
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.35.0",
     "eslint": "^10.13.0",
-    "jest": "^30.0.3",
     "morgan": "^1.10.1",
-    "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.54.0",
     "winston": "^3.19.0"
   },
   "engines": {
-    "node": "^18.19.0 || >=20.6.0"
+    "node": ">=22.0.0"
   },
   "repository": {
     "type": "git",
@@ -72,6 +73,7 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true
+    "provenance": true,
+    "tag": "next"
   }
 }

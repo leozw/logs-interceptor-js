@@ -10,12 +10,14 @@ import { internalDebug } from '../../utils';
 import { LokiJsonTransport } from './LokiJsonTransport';
 import { OtlpHttpTransport } from './OtlpHttpTransport';
 import { ResilientTransport } from './ResilientTransport';
+import type { MatcherPolicy } from '../privacy/MatcherPolicy';
 
 export class TransportFactory {
   static create(
     config: ResolvedLogsInterceptorConfig,
     circuitBreaker?: ICircuitBreaker,
-    dlq?: IDeadLetterQueue
+    dlq?: IDeadLetterQueue,
+    matcher?: MatcherPolicy
   ): ILogTransport {
     const transportConfig = {
       ...config.transport,
@@ -29,7 +31,7 @@ export class TransportFactory {
 
     if (config.transport.type === 'otlp') {
       internalDebug('Selected OtlpHttpTransport');
-      baseTransport = new OtlpHttpTransport(config);
+      baseTransport = new OtlpHttpTransport(config, matcher);
     } else if (config.transport.compression === 'snappy') {
       // Lazy import to avoid loading native snappy bindings when not needed.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -48,6 +50,7 @@ export class TransportFactory {
       {
         maxRetries: config.transport.maxRetries,
         retryDelay: config.transport.retryDelay,
+        sendTimeoutMillis: config.transport.sendTimeoutMillis,
       },
       circuitBreaker,
       dlq

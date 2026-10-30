@@ -6,6 +6,7 @@ import {
   CircuitBreakerStateType,
   ICircuitBreaker,
 } from '../../domain/interfaces/ICircuitBreaker';
+import { RetryAfterDeclined } from '../transport/RetryAfter';
 
 export interface CircuitBreakerConfig {
   readonly enabled: boolean;
@@ -51,7 +52,7 @@ export class CircuitBreaker implements ICircuitBreaker {
       this.recordSuccess();
       return result;
     } catch (error) {
-      this.recordFailure(error as Error);
+      if (!(error instanceof RetryAfterDeclined)) this.recordFailure(error as Error);
       throw error;
     } finally {
       if (countedAsProbe) {

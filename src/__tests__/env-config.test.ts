@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import { loadConfigFromEnv } from '../utils';
 import { ConfigService } from '../application/services/ConfigService';
 
@@ -19,9 +21,9 @@ describe('Environment configuration (LOGS_*)', () => {
 
     const config = loadConfigFromEnv();
 
-    expect(config.transport?.url).toBe(process.env.LOGS_URL);
-    expect(config.transport?.tenantId).toBe('tenant-a');
-    expect(config.appName).toBe('app-a');
+    assert.strictEqual((config.transport?.url), process.env.LOGS_URL);
+    assert.strictEqual((config.transport?.tenantId), 'tenant-a');
+    assert.strictEqual((config.appName), 'app-a');
   });
 
   it('should use the shared OTLP collector without Loki credentials', () => {
@@ -35,11 +37,11 @@ describe('Environment configuration (LOGS_*)', () => {
     const config = loadConfigFromEnv();
     const errors = ConfigService.validate(config);
 
-    expect(config.transport?.type).toBe('otlp');
-    expect(config.transport?.url).toBe('http://collector:4318');
-    expect(config.transport?.tenantId).toBe('');
-    expect(config.transport?.authToken).toBeUndefined();
-    expect(errors).toEqual([]);
+    assert.strictEqual((config.transport?.type), 'otlp');
+    assert.strictEqual((config.transport?.url), 'http://collector:4318');
+    assert.strictEqual((config.transport?.tenantId), '');
+    assert.strictEqual((config.transport?.authToken), undefined);
+    assert.deepStrictEqual((errors), []);
   });
 
   it('should preserve explicit zero values', () => {
@@ -56,13 +58,13 @@ describe('Environment configuration (LOGS_*)', () => {
 
     const config = loadConfigFromEnv();
 
-    expect(config.transport?.timeout).toBe(0);
-    expect(config.transport?.maxRetries).toBe(0);
-    expect(config.transport?.retryDelay).toBe(0);
-    expect(config.filter?.samplingRate).toBe(0);
-    expect(config.filter?.maxContextBytes).toBe(4096);
-    expect(config.performance?.maxPendingBatches).toBe(3);
-    expect(config.transport?.compressionLevel).toBe(0);
+    assert.strictEqual((config.transport?.timeout), 0);
+    assert.strictEqual((config.transport?.maxRetries), 0);
+    assert.strictEqual((config.transport?.retryDelay), 0);
+    assert.strictEqual((config.filter?.samplingRate), 0);
+    assert.strictEqual((config.filter?.maxContextBytes), 4096);
+    assert.strictEqual((config.performance?.maxPendingBatches), 3);
+    assert.strictEqual((config.transport?.compressionLevel), 0);
   });
 
   it('should load labels from LOGS_LABEL_* prefix', () => {
@@ -74,7 +76,7 @@ describe('Environment configuration (LOGS_*)', () => {
 
     const config = loadConfigFromEnv();
 
-    expect(config.labels).toEqual({
+    assert.deepStrictEqual((config.labels), {
       service: 'busca-prd',
       environment: 'prd',
     });
@@ -89,12 +91,12 @@ describe('Environment configuration (LOGS_*)', () => {
       },
     });
 
-    expect(config.transport.timeout).toBe(5_000);
-    expect(config.transport.maxRetries).toBe(1);
-    expect(config.transport.useWorkers).toBe(false);
-    expect(config.transport.maxSockets).toBe(10);
-    expect(config.buffer.maxMemoryMB).toBe(32);
-    expect(config.performance.maxConcurrentFlushes).toBe(2);
-    expect(config.performance.maxPendingBatches).toBe(2);
+    assert.strictEqual((config.transport.timeout), 5_000);
+    assert.strictEqual((config.transport.maxRetries), 1);
+    assert.strictEqual((config.transport.useWorkers), false);
+    assert.strictEqual((config.transport.maxSockets), 10);
+    assert.strictEqual((config.buffer.maxMemoryMB), 32);
+    assert.strictEqual((config.performance.maxConcurrentFlushes), 2);
+    assert.strictEqual((config.performance.maxPendingBatches), 2);
   });
 });

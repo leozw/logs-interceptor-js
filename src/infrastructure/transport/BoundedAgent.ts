@@ -4,6 +4,7 @@ export function boundedAgent(
   timeoutMillis: number,
   maxSockets = 4,
   keepAlive = true,
+  operationSignal?: () => AbortSignal | undefined,
 ) {
   const agents = new Set<Agent>();
   const requests = new Map<ClientRequest, ReturnType<typeof setTimeout>>();
@@ -25,7 +26,11 @@ export function boundedAgent(
           request.destroy(new Error('Telemetry transport closed'));
           return;
         }
+        const signal = operationSignal?.();
+        const abort = () => request.destroy(new Error('ELVEN_OPERATION_CANCELLED'));
+        if (signal?.aborted) { abort(); return; }
         const cleanup = () => {
+          signal?.removeEventListener('abort', abort);
           clearTimeout(requests.get(request));
           requests.delete(request);
         };
@@ -35,6 +40,7 @@ export function boundedAgent(
         );
         timer.unref();
         requests.set(request, timer);
+        signal?.addEventListener('abort', abort, { once: true });
         request.once('close', cleanup);
         request.once('response', (response) => {
           response.once('end', cleanup);

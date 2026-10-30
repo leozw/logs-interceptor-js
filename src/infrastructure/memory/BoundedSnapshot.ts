@@ -1,3 +1,5 @@
+import { detachedString } from './DetachedString';
+
 /** Snapshot application data without calling getters, toJSON or custom inspectors. */
 export function boundedSnapshot(
   value: unknown,
@@ -13,9 +15,8 @@ export function boundedSnapshot(
       Math.min(input.length, Math.floor(remaining / 6), 8192),
     );
     remaining -= length * 6;
-    return length < input.length
-      ? `${input.slice(0, length)}...[truncated]`
-      : input;
+    const owned = detachedString(input, length);
+    return length < input.length ? `${owned}...[truncated]` : owned;
   };
   const visit = (input: unknown, depth: number): unknown => {
     if (--nodes < 0 || remaining <= 0) return '[LIMIT_REACHED]';

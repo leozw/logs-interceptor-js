@@ -1,0 +1,1825 @@
+{
+  "at": "2026-10-30T01:11:50.846Z",
+  "status": "PASS",
+  "originalSource": "0d04a335d23ed7a18057a206503d4e8aa3ca53c1",
+  "cases": 67,
+  "dynamicAssertions": 351,
+  "assertionSites": 144,
+  "files": [
+    {
+      "file": "env-config.test.ts",
+      "beforeSha256": "cd944af1fc5b4be1f70d7a9b4fb7b618eff8b01a5ff302cb89ff56a78e7680cc",
+      "oldAssertionSites": 23,
+      "newAssertionSites": 23,
+      "mappings": [
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.url).toBe(process.env.LOGS_URL)",
+          "after": "assert.strictEqual((config.transport?.url), process.env.LOGS_URL)",
+          "title": "'should load required LOGS_* fields'",
+          "oldLine": 22,
+          "newLine": 24
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.tenantId).toBe('tenant-a')",
+          "after": "assert.strictEqual((config.transport?.tenantId), 'tenant-a')",
+          "title": "'should load required LOGS_* fields'",
+          "oldLine": 23,
+          "newLine": 25
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.appName).toBe('app-a')",
+          "after": "assert.strictEqual((config.appName), 'app-a')",
+          "title": "'should load required LOGS_* fields'",
+          "oldLine": 24,
+          "newLine": 26
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.type).toBe('otlp')",
+          "after": "assert.strictEqual((config.transport?.type), 'otlp')",
+          "title": "'should use the shared OTLP collector without Loki credentials'",
+          "oldLine": 38,
+          "newLine": 40
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.url).toBe('http://collector:4318')",
+          "after": "assert.strictEqual((config.transport?.url), 'http://collector:4318')",
+          "title": "'should use the shared OTLP collector without Loki credentials'",
+          "oldLine": 39,
+          "newLine": 41
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.tenantId).toBe('')",
+          "after": "assert.strictEqual((config.transport?.tenantId), '')",
+          "title": "'should use the shared OTLP collector without Loki credentials'",
+          "oldLine": 40,
+          "newLine": 42
+        },
+        {
+          "operator": "positive.toBeUndefined",
+          "before": "expect(config.transport?.authToken).toBeUndefined()",
+          "after": "assert.strictEqual((config.transport?.authToken), undefined)",
+          "title": "'should use the shared OTLP collector without Loki credentials'",
+          "oldLine": 41,
+          "newLine": 43
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(errors).toEqual([])",
+          "after": "assert.deepStrictEqual((errors), [])",
+          "title": "'should use the shared OTLP collector without Loki credentials'",
+          "oldLine": 42,
+          "newLine": 44
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.timeout).toBe(0)",
+          "after": "assert.strictEqual((config.transport?.timeout), 0)",
+          "title": "'should preserve explicit zero values'",
+          "oldLine": 59,
+          "newLine": 61
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.maxRetries).toBe(0)",
+          "after": "assert.strictEqual((config.transport?.maxRetries), 0)",
+          "title": "'should preserve explicit zero values'",
+          "oldLine": 60,
+          "newLine": 62
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.retryDelay).toBe(0)",
+          "after": "assert.strictEqual((config.transport?.retryDelay), 0)",
+          "title": "'should preserve explicit zero values'",
+          "oldLine": 61,
+          "newLine": 63
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.filter?.samplingRate).toBe(0)",
+          "after": "assert.strictEqual((config.filter?.samplingRate), 0)",
+          "title": "'should preserve explicit zero values'",
+          "oldLine": 62,
+          "newLine": 64
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.filter?.maxContextBytes).toBe(4096)",
+          "after": "assert.strictEqual((config.filter?.maxContextBytes), 4096)",
+          "title": "'should preserve explicit zero values'",
+          "oldLine": 63,
+          "newLine": 65
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.performance?.maxPendingBatches).toBe(3)",
+          "after": "assert.strictEqual((config.performance?.maxPendingBatches), 3)",
+          "title": "'should preserve explicit zero values'",
+          "oldLine": 64,
+          "newLine": 66
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.compressionLevel).toBe(0)",
+          "after": "assert.strictEqual((config.transport?.compressionLevel), 0)",
+          "title": "'should preserve explicit zero values'",
+          "oldLine": 65,
+          "newLine": 67
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(config.labels).toEqual({\n      service: 'busca-prd',\n      environment: 'prd',\n    })",
+          "after": "assert.deepStrictEqual((config.labels), {\n      service: 'busca-prd',\n      environment: 'prd',\n    })",
+          "title": "'should load labels from LOGS_LABEL_* prefix'",
+          "oldLine": 77,
+          "newLine": 79
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport.timeout).toBe(5_000)",
+          "after": "assert.strictEqual((config.transport.timeout), 5_000)",
+          "title": "'should resolve economy defaults without worker threads'",
+          "oldLine": 92,
+          "newLine": 94
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport.maxRetries).toBe(1)",
+          "after": "assert.strictEqual((config.transport.maxRetries), 1)",
+          "title": "'should resolve economy defaults without worker threads'",
+          "oldLine": 93,
+          "newLine": 95
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport.useWorkers).toBe(false)",
+          "after": "assert.strictEqual((config.transport.useWorkers), false)",
+          "title": "'should resolve economy defaults without worker threads'",
+          "oldLine": 94,
+          "newLine": 96
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport.maxSockets).toBe(10)",
+          "after": "assert.strictEqual((config.transport.maxSockets), 10)",
+          "title": "'should resolve economy defaults without worker threads'",
+          "oldLine": 95,
+          "newLine": 97
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.buffer.maxMemoryMB).toBe(32)",
+          "after": "assert.strictEqual((config.buffer.maxMemoryMB), 32)",
+          "title": "'should resolve economy defaults without worker threads'",
+          "oldLine": 96,
+          "newLine": 98
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.performance.maxConcurrentFlushes).toBe(2)",
+          "after": "assert.strictEqual((config.performance.maxConcurrentFlushes), 2)",
+          "title": "'should resolve economy defaults without worker threads'",
+          "oldLine": 97,
+          "newLine": 99
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.performance.maxPendingBatches).toBe(2)",
+          "after": "assert.strictEqual((config.performance.maxPendingBatches), 2)",
+          "title": "'should resolve economy defaults without worker threads'",
+          "oldLine": 98,
+          "newLine": 100
+        }
+      ],
+      "mocks": []
+    },
+    {
+      "file": "integration.test.ts",
+      "beforeSha256": "10a3e5c20b18042c709ece0dba96248d0e3af274dee908a497c82651fa780e8e",
+      "oldAssertionSites": 17,
+      "newAssertionSites": 17,
+      "mappings": [
+        {
+          "operator": "positive.toBeDefined",
+          "before": "expect(instance).toBeDefined()",
+          "after": "assert.notStrictEqual((instance), undefined)",
+          "title": "'should initialize with valid config'",
+          "oldLine": 28,
+          "newLine": 31
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(getLogger()).toBe(instance)",
+          "after": "assert.strictEqual((getLogger()), instance)",
+          "title": "'should initialize with valid config'",
+          "oldLine": 29,
+          "newLine": 32
+        },
+        {
+          "operator": "positive.toThrow",
+          "before": "expect(() => {\n        init({\n          transport: {\n            url: '',\n            tenantId: 'test',\n            useWorkers: false,\n          },\n          appName: 'test',\n        });\n      }).toThrow()",
+          "after": "assert.throws((() => {\n        init({\n          transport: {\n            url: '',\n            tenantId: 'test',\n            useWorkers: false,\n          },\n          appName: 'test',\n        });\n      }))",
+          "title": "'should throw error with invalid config'",
+          "oldLine": 33,
+          "newLine": 36
+        },
+        {
+          "operator": "not.toThrow",
+          "before": "expect(() => {\n        instance.debug('Debug message');\n        instance.info('Info message');\n        instance.warn('Warning message');\n        instance.error('Error message');\n      }).not.toThrow()",
+          "after": "assert.doesNotThrow((() => {\n        instance.debug('Debug message');\n        instance.info('Info message');\n        instance.warn('Warning message');\n        instance.error('Error message');\n      }))",
+          "title": "'should log messages at different levels'",
+          "oldLine": 59,
+          "newLine": 62
+        },
+        {
+          "operator": "positive.toBeGreaterThanOrEqual",
+          "before": "expect(metrics.logsProcessed).toBeGreaterThanOrEqual(2)",
+          "after": "greaterOrEqual(metrics.logsProcessed, 2)",
+          "title": "'should support context propagation API'",
+          "oldLine": 88,
+          "newLine": 91
+        },
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(instance.flush()).rejects.toThrow()",
+          "after": "rejectsToThrow(instance.flush())",
+          "title": "'should flush logs and propagate transport errors'",
+          "oldLine": 112,
+          "newLine": 115
+        },
+        {
+          "operator": "positive.toBeDefined",
+          "before": "expect(metrics).toBeDefined()",
+          "after": "assert.notStrictEqual((metrics), undefined)",
+          "title": "'should return expanded metrics'",
+          "oldLine": 130,
+          "newLine": 133
+        },
+        {
+          "operator": "positive.toBeGreaterThanOrEqual",
+          "before": "expect(metrics.logsProcessed).toBeGreaterThanOrEqual(0)",
+          "after": "greaterOrEqual(metrics.logsProcessed, 0)",
+          "title": "'should return expanded metrics'",
+          "oldLine": 131,
+          "newLine": 134
+        },
+        {
+          "operator": "positive.toBeGreaterThanOrEqual",
+          "before": "expect(metrics.bufferSize).toBeGreaterThanOrEqual(0)",
+          "after": "greaterOrEqual(metrics.bufferSize, 0)",
+          "title": "'should return expanded metrics'",
+          "oldLine": 132,
+          "newLine": 135
+        },
+        {
+          "operator": "positive.toBeGreaterThanOrEqual",
+          "before": "expect(metrics.droppedByBackpressure).toBeGreaterThanOrEqual(0)",
+          "after": "greaterOrEqual(metrics.droppedByBackpressure, 0)",
+          "title": "'should return expanded metrics'",
+          "oldLine": 133,
+          "newLine": 136
+        },
+        {
+          "operator": "positive.toBeGreaterThanOrEqual",
+          "before": "expect(metrics.droppedByDlq).toBeGreaterThanOrEqual(0)",
+          "after": "greaterOrEqual(metrics.droppedByDlq, 0)",
+          "title": "'should return expanded metrics'",
+          "oldLine": 134,
+          "newLine": 137
+        },
+        {
+          "operator": "positive.toBeDefined",
+          "before": "expect(health).toBeDefined()",
+          "after": "assert.notStrictEqual((health), undefined)",
+          "title": "'should return health status'",
+          "oldLine": 150,
+          "newLine": 153
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(typeof health.healthy).toBe('boolean')",
+          "after": "assert.strictEqual((typeof health.healthy), 'boolean')",
+          "title": "'should return health status'",
+          "oldLine": 151,
+          "newLine": 154
+        },
+        {
+          "operator": "positive.toBeGreaterThanOrEqual",
+          "before": "expect(health.uptime).toBeGreaterThanOrEqual(0)",
+          "after": "greaterOrEqual(health.uptime, 0)",
+          "title": "'should return health status'",
+          "oldLine": 152,
+          "newLine": 155
+        },
+        {
+          "operator": "positive.toBeDefined",
+          "before": "expect(instance).toBeDefined()",
+          "after": "assert.notStrictEqual((instance), undefined)",
+          "title": "'should support Brotli compression'",
+          "oldLine": 171,
+          "newLine": 174
+        },
+        {
+          "operator": "positive.toBeDefined",
+          "before": "expect(instance).toBeDefined()",
+          "after": "assert.notStrictEqual((instance), undefined)",
+          "title": "'should support Gzip compression'",
+          "oldLine": 187,
+          "newLine": 190
+        },
+        {
+          "operator": "positive.toBeDefined",
+          "before": "expect(instance).toBeDefined()",
+          "after": "assert.notStrictEqual((instance), undefined)",
+          "title": "'should support Dead Letter Queue'",
+          "oldLine": 207,
+          "newLine": 210
+        }
+      ],
+      "mocks": [
+        {
+          "kind": "clearAllMocks",
+          "before": "jest.clearAllMocks()",
+          "note": "Original integration file creates no mocks; resetting its empty tracker is equivalent."
+        }
+      ]
+    },
+    {
+      "file": "matcher-privacy.test.ts",
+      "beforeSha256": "1774f4d8fef293d1606cc88417c12222876667064cc031688b1108586d786c0d",
+      "oldAssertionSites": 22,
+      "newAssertionSites": 22,
+      "mappings": [
+        {
+          "operator": "positive.toBe",
+          "before": "expect(validateMatcherPatterns(patterns)).toBe(false)",
+          "after": "assert.strictEqual((validateMatcherPatterns(patterns)), false)",
+          "title": "'over-budget configuration is rejected before visiting any pattern'",
+          "oldLine": 10,
+          "newLine": 13
+        },
+        {
+          "operator": "positive.toThrow",
+          "before": "expect(() => init({ ...config, filter: {\n    sensitivePatterns: Array.from({ length: 32 }, () => /a{80}/),\n    patterns: Array.from({ length: 32 }, () => /b{80}/),\n  } })).toThrow('ELVEN_MATCHER_COMPILE_BUDGET')",
+          "after": "throwsContaining((() => init({ ...config, filter: {\n    sensitivePatterns: Array.from({ length: 32 }, () => /a{80}/),\n    patterns: Array.from({ length: 32 }, () => /b{80}/),\n  } })), 'ELVEN_MATCHER_COMPILE_BUDGET')",
+          "title": "'a rejected combined matcher plan does not retire the active logger'",
+          "oldLine": 20,
+          "newLine": 23
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(isInitialized()).toBe(true)",
+          "after": "assert.strictEqual((isInitialized()), true)",
+          "title": "'a rejected combined matcher plan does not retire the active logger'",
+          "oldLine": 24,
+          "newLine": 27
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(getLogger()).toBe(active)",
+          "after": "assert.strictEqual((getLogger()), active)",
+          "title": "'a rejected combined matcher plan does not retire the active logger'",
+          "oldLine": 25,
+          "newLine": 28
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(active.getMetrics().logsProcessed).toBe(1)",
+          "after": "assert.strictEqual((active.getMetrics().logsProcessed), 1)",
+          "title": "'a rejected combined matcher plan does not retire the active logger'",
+          "oldLine": 27,
+          "newLine": 30
+        },
+        {
+          "operator": "positive.toHaveLength",
+          "before": "expect(internal.buffer.flush()).toHaveLength(1)",
+          "after": "assert.strictEqual((internal.buffer.flush()).length, 1)",
+          "title": "'a rejected combined matcher plan does not retire the active logger'",
+          "oldLine": 29,
+          "newLine": 32
+        },
+        {
+          "operator": "positive.toHaveLength",
+          "before": "expect(bodies).toHaveLength(1)",
+          "after": "assert.strictEqual((bodies).length, 1)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 61,
+          "newLine": 64
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(wire.includes(Buffer.from(value))).toBe(false)",
+          "after": "assert.strictEqual((wire.includes(Buffer.from(value))), false)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 64,
+          "newLine": 67
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(wire.includes(Buffer.from('keep public-message'))).toBe(true)",
+          "after": "assert.strictEqual((wire.includes(Buffer.from('keep public-message'))), true)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 66,
+          "newLine": 69
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(wire.includes(Buffer.from('plain-array'))).toBe(true)",
+          "after": "assert.strictEqual((wire.includes(Buffer.from('plain-array'))), true)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 67,
+          "newLine": 70
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(wire.includes(Buffer.from('plain-label'))).toBe(true)",
+          "after": "assert.strictEqual((wire.includes(Buffer.from('plain-label'))), true)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 68,
+          "newLine": 71
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(logger.getMetrics().logsProcessed).toBe(2)",
+          "after": "assert.strictEqual((logger.getMetrics().logsProcessed), 2)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 69,
+          "newLine": 72
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(logger.getMetrics().logsDropped).toBe(1)",
+          "after": "assert.strictEqual((logger.getMetrics().logsDropped), 1)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 70,
+          "newLine": 73
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(logger.getHealth().privacyDiagnostics).toEqual([])",
+          "after": "assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), [])",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 71,
+          "newLine": 74
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(pattern.lastIndex).toBe(19)",
+          "after": "assert.strictEqual((pattern.lastIndex), 19)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 72,
+          "newLine": 75
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(labels.static).toBe('PRIVATE_9301')",
+          "after": "assert.strictEqual((labels.static), 'PRIVATE_9301')",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 73,
+          "newLine": 76
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(context.nested.array[0]).toBe('PRIVATE_9304')",
+          "after": "assert.strictEqual((context.nested.array[0]), 'PRIVATE_9304')",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 74,
+          "newLine": 77
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(Object.isFrozen(context.nested.array)).toBe(true)",
+          "after": "assert.strictEqual((Object.isFrozen(context.nested.array)), true)",
+          "title": "'custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers'",
+          "oldLine": 75,
+          "newLine": 78
+        },
+        {
+          "operator": "not.toThrow",
+          "before": "expect(() => logger.info('\\ud800')).not.toThrow()",
+          "after": "assert.doesNotThrow((() => logger.info('\\ud800')))",
+          "title": "'accepted policy with unsupported live Unicode fails closed without throwing through business logging'",
+          "oldLine": 87,
+          "newLine": 90
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(logger.getHealth().privacyDiagnostics).toEqual(['ELVEN_MATCHER_UNSUPPORTED_INPUT'])",
+          "after": "assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), ['ELVEN_MATCHER_UNSUPPORTED_INPUT'])",
+          "title": "'accepted policy with unsupported live Unicode fails closed without throwing through business logging'",
+          "oldLine": 88,
+          "newLine": 91
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(logger.getHealth().healthy).toBe(false)",
+          "after": "assert.strictEqual((logger.getHealth().healthy), false)",
+          "title": "'accepted policy with unsupported live Unicode fails closed without throwing through business logging'",
+          "oldLine": 89,
+          "newLine": 92
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(internal.buffer.flush()[0].message).toBe('[REDACTED]')",
+          "after": "assert.strictEqual((internal.buffer.flush()[0].message), '[REDACTED]')",
+          "title": "'accepted policy with unsupported live Unicode fails closed without throwing through business logging'",
+          "oldLine": 92,
+          "newLine": 95
+        }
+      ],
+      "mocks": []
+    },
+    {
+      "file": "memory-safety.test.ts",
+      "beforeSha256": "8adcf17be0e1d580782ea3d7959e8276a5b8a8ad130d111e80f178f0b2aece10",
+      "oldAssertionSites": 7,
+      "newAssertionSites": 7,
+      "mappings": [
+        {
+          "operator": "positive.toHaveBeenCalledTimes",
+          "before": "expect(onFlushRequested).toHaveBeenCalledTimes(1)",
+          "after": "assert.strictEqual((onFlushRequested).mock.calls.length, 1)",
+          "title": "'coalesces immediate flush requests'",
+          "oldLine": 33,
+          "newLine": 36
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(JSON.stringify(filtered.context)).toContain('truncated')",
+          "after": "assert.ok((JSON.stringify(filtered.context)).includes('truncated'))",
+          "title": "'bounds large structured contexts before buffering'",
+          "oldLine": 61,
+          "newLine": 64
+        },
+        {
+          "operator": "positive.toBeLessThan",
+          "before": "expect(Buffer.byteLength(JSON.stringify(filtered.context), 'utf8')).toBeLessThan(1024)",
+          "after": "lessThan(Buffer.byteLength(JSON.stringify(filtered.context), 'utf8'), 1024)",
+          "title": "'bounds large structured contexts before buffering'",
+          "oldLine": 62,
+          "newLine": 65
+        },
+        {
+          "operator": "positive.toHaveLength",
+          "before": "expect((service as any).flushQueue).toHaveLength(2)",
+          "after": "assert.strictEqual(((service as any).flushQueue).length, 2)",
+          "title": "'drops old queued batches when the flush backlog reaches its limit'",
+          "oldLine": 124,
+          "newLine": 125
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(service.getMetrics().droppedByBackpressure).toBe(1)",
+          "after": "assert.strictEqual((service.getMetrics().droppedByBackpressure), 1)",
+          "title": "'drops old queued batches when the flush backlog reaches its limit'",
+          "oldLine": 125,
+          "newLine": 126
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(service.getMetrics().pendingFlushBatches).toBe(0)",
+          "after": "assert.strictEqual((service.getMetrics().pendingFlushBatches), 0)",
+          "title": "'drops old queued batches when the flush backlog reaches its limit'",
+          "oldLine": 133,
+          "newLine": 134
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(service.getMetrics().inFlightFlushes).toBe(0)",
+          "after": "assert.strictEqual((service.getMetrics().inFlightFlushes), 0)",
+          "title": "'drops old queued batches when the flush backlog reaches its limit'",
+          "oldLine": 134,
+          "newLine": 135
+        }
+      ],
+      "mocks": [
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(\n        () => new Promise<void>((resolve) => transportResolvers.push(resolve))\n      )"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(async () => true)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(() => ({ healthy: true, consecutiveFailures: 0 }))"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(async () => undefined)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(() => 0)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(() => [])"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(() => ({\n        size: 0,\n        maxSize: 10,\n        memoryUsageMB: 0,\n        droppedEntries: 0,\n      }))"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(() => true)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(() => true)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn((entry) => entry)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(() => ({}))"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn((_context, fn) => fn())"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn((_context, fn) => fn())"
+        }
+      ]
+    },
+    {
+      "file": "native-unicode-privacy.test.ts",
+      "beforeSha256": "810c7458e5225d5adf991bda4d26bdb1a86d40a9fed03105940a0830eb4a9e90",
+      "oldAssertionSites": 13,
+      "newAssertionSites": 13,
+      "mappings": [
+        {
+          "operator": "positive.toHaveLength",
+          "before": "expect(bodies).toHaveLength(site === 'selector' ? 0 : 1)",
+          "after": "assert.strictEqual((bodies).length, site === 'selector' ? 0 : 1)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 38,
+          "newLine": 41
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(Buffer.concat(bodies).includes(Buffer.from(canary))).toBe(false)",
+          "after": "assert.strictEqual((Buffer.concat(bodies).includes(Buffer.from(canary))), false)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 39,
+          "newLine": 42
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(logger.getHealth().privacyDiagnostics).toEqual(['ELVEN_MATCHER_UNSUPPORTED_INPUT'])",
+          "after": "assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), ['ELVEN_MATCHER_UNSUPPORTED_INPUT'])",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 40,
+          "newLine": 43
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(logger.getHealth().healthy).toBe(false)",
+          "after": "assert.strictEqual((logger.getHealth().healthy), false)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 41,
+          "newLine": 44
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(logger.getMetrics().logsDropped).toBe(1)",
+          "after": "assert.strictEqual((logger.getMetrics().logsDropped), 1)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 42,
+          "newLine": 45
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(Object.isFrozen(context)).toBe(true)",
+          "after": "assert.strictEqual((Object.isFrozen(context)), true)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 43,
+          "newLine": 46
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(Object.isFrozen(labels)).toBe(true)",
+          "after": "assert.strictEqual((Object.isFrozen(labels)), true)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 44,
+          "newLine": 47
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(labels.note).toBe(payload)",
+          "after": "assert.strictEqual((labels.note), payload)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 45,
+          "newLine": 48
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(context.field).toBe(payload)",
+          "after": "assert.strictEqual((context.field), payload)",
+          "title": "'whole OTLP wire fails closed: %s / %s'",
+          "oldLine": 46,
+          "newLine": 49
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(internal.buffer.flush().map(entry => entry.message)).toEqual([message, '[REDACTED]'])",
+          "after": "assert.deepStrictEqual((internal.buffer.flush().map(entry => entry.message)), [message, '[REDACTED]'])",
+          "title": "'valid astral Unicode remains intact on default native policy, while ordinary PII still masks'",
+          "oldLine": 59,
+          "newLine": 62
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(logger.getHealth().privacyDiagnostics).toEqual([])",
+          "after": "assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), [])",
+          "title": "'valid astral Unicode remains intact on default native policy, while ordinary PII still masks'",
+          "oldLine": 60,
+          "newLine": 63
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(internal.buffer.flush()[0].message).toBe(message)",
+          "after": "assert.strictEqual((internal.buffer.flush()[0].message), message)",
+          "title": "'explicit sanitize false remains a privacy opt-out rather than a failure fallback'",
+          "oldLine": 68,
+          "newLine": 71
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(logger.getHealth().privacyDiagnostics).toEqual([])",
+          "after": "assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), [])",
+          "title": "'explicit sanitize false remains a privacy opt-out rather than a failure fallback'",
+          "oldLine": 69,
+          "newLine": 72
+        }
+      ],
+      "mocks": []
+    },
+    {
+      "file": "resource-privacy.test.ts",
+      "beforeSha256": "3cf615a0a10f55a94d84c954cb6696fa98c8364e38c6999e0b1f8159ee58608c",
+      "oldAssertionSites": 17,
+      "newAssertionSites": 17,
+      "mappings": [
+        {
+          "operator": "positive.toBe",
+          "before": "expect(Object.values(bounded).every(value => typeof value === 'string')).toBe(true)",
+          "after": "assert.strictEqual((Object.values(bounded).every(value => typeof value === 'string')), true)",
+          "title": "'label budget sentinels remain string-valued and snapshots do not call accessors'",
+          "oldLine": 23,
+          "newLine": 28
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(typeof bounded._truncated).toBe('string')",
+          "after": "assert.strictEqual((typeof bounded._truncated), 'string')",
+          "title": "'label budget sentinels remain string-valued and snapshots do not call accessors'",
+          "oldLine": 24,
+          "newLine": 29
+        },
+        {
+          "operator": "positive.toBeLessThan",
+          "before": "expect(Buffer.byteLength(JSON.stringify(bounded))).toBeLessThan(20000)",
+          "after": "lessThan(Buffer.byteLength(JSON.stringify(bounded)), 20000)",
+          "title": "'label budget sentinels remain string-valued and snapshots do not call accessors'",
+          "oldLine": 25,
+          "newLine": 30
+        },
+        {
+          "operator": "positive.toHaveLength",
+          "before": "expect(source.label_0).toHaveLength(20000)",
+          "after": "assert.strictEqual((source.label_0).length, 20000)",
+          "title": "'label budget sentinels remain string-valued and snapshots do not call accessors'",
+          "oldLine": 26,
+          "newLine": 31
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(normalized._truncated).toBe('true')",
+          "after": "assert.strictEqual((normalized._truncated), 'true')",
+          "title": "'label budget sentinels remain string-valued and snapshots do not call accessors'",
+          "oldLine": 30,
+          "newLine": 35
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(normalized.nested).toBe('[INVALID_LABEL_VALUE]')",
+          "after": "assert.strictEqual((normalized.nested), '[INVALID_LABEL_VALUE]')",
+          "title": "'label budget sentinels remain string-valued and snapshots do not call accessors'",
+          "oldLine": 31,
+          "newLine": 36
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(accessed).toBe(0)",
+          "after": "assert.strictEqual((accessed), 0)",
+          "title": "'label budget sentinels remain string-valued and snapshots do not call accessors'",
+          "oldLine": 32,
+          "newLine": 37
+        },
+        {
+          "operator": "positive.toHaveLength",
+          "before": "expect(bodies).toHaveLength(1)",
+          "after": "assert.strictEqual((bodies).length, 1)",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 67,
+          "newLine": 72
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(body.toString()).toContain('resource-policy-log')",
+          "after": "assert.ok((body.toString()).includes('resource-policy-log'))",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 69,
+          "newLine": 74
+        },
+        {
+          "operator": "positive.toHaveLength",
+          "before": "expect(decoded.resourceLogs).toHaveLength(1)",
+          "after": "assert.strictEqual((decoded.resourceLogs).length, 1)",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 71,
+          "newLine": 76
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(body.includes(Buffer.from(original))).toBe(!redacted)",
+          "after": "assert.strictEqual((body.includes(Buffer.from(original))), !redacted)",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 78,
+          "newLine": 83
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(resourceAttributes).toEqual(expect.arrayContaining([{ key, value: { stringValue: expected } }]))",
+          "after": "assert.ok(([{ key, value: { stringValue: expected } }]).every((expected: unknown) => (resourceAttributes).some((actual: unknown) => isDeepStrictEqual(actual, expected))))",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 79,
+          "newLine": 84
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(recordAttributes).toEqual(expect.arrayContaining([{ key, value: { stringValue: expected } }]))",
+          "after": "assert.ok(([{ key, value: { stringValue: expected } }]).every((expected: unknown) => (recordAttributes).some((actual: unknown) => isDeepStrictEqual(actual, expected))))",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 80,
+          "newLine": 85
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(labels.password).toBe('synthetic-resource-password-9b2d')",
+          "after": "assert.strictEqual((labels.password), 'synthetic-resource-password-9b2d')",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 82,
+          "newLine": 87
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(labels.email).toBe('synthetic-resource-email@example.invalid')",
+          "after": "assert.strictEqual((labels.email), 'synthetic-resource-email@example.invalid')",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 83,
+          "newLine": 88
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(Object.isFrozen(labels)).toBe(true)",
+          "after": "assert.strictEqual((Object.isFrozen(labels)), true)",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 84,
+          "newLine": 89
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(Object.keys(labels)).toEqual(['password', 'email', 'organization', 'plain'])",
+          "after": "assert.deepStrictEqual((Object.keys(labels)), ['password', 'email', 'organization', 'plain'])",
+          "title": "'whole OTLP payload applies %s label privacy to Resource and records without source mutation'",
+          "oldLine": 85,
+          "newLine": 90
+        }
+      ],
+      "mocks": []
+    },
+    {
+      "file": "security-runtime.test.ts",
+      "beforeSha256": "f6852a4bae8b09d28af58a707db64af1400cb7b4db4c6c5175c68bfefe174398",
+      "oldAssertionSites": 45,
+      "newAssertionSites": 45,
+      "mappings": [
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(service.destroy()).rejects.toThrow('deadline exceeded')",
+          "after": "rejectsToThrow(service.destroy(), 'deadline exceeded')",
+          "title": "'shutdown deadline settles even when a transport has not completed its send'",
+          "oldLine": 63,
+          "newLine": 68
+        },
+        {
+          "operator": "positive.toHaveBeenCalledTimes",
+          "before": "expect(transport.destroy).toHaveBeenCalledTimes(1)",
+          "after": "assert.strictEqual((transport.destroy).mock.calls.length, 1)",
+          "title": "'shutdown deadline settles even when a transport has not completed its send'",
+          "oldLine": 65,
+          "newLine": 70
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect((await pending).message).toContain('closed')",
+          "after": "assert.ok(((await pending).message).includes('closed'))",
+          "title": "'destroy cancels retry backoff without performing another network attempt'",
+          "oldLine": 87,
+          "newLine": 92
+        },
+        {
+          "operator": "positive.toHaveBeenCalledTimes",
+          "before": "expect(base.send).toHaveBeenCalledTimes(1)",
+          "after": "assert.strictEqual((base.send).mock.calls.length, 1)",
+          "title": "'destroy cancels retry backoff without performing another network attempt'",
+          "oldLine": 88,
+          "newLine": 93
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(events).toEqual([])",
+          "after": "assert.deepStrictEqual((events), [])",
+          "title": "'Winston callback follows notification so the stream can apply backpressure'",
+          "oldLine": 100,
+          "newLine": 105
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(events).toEqual(['logged', 'callback'])",
+          "after": "assert.deepStrictEqual((events), ['logged', 'callback'])",
+          "title": "'Winston callback follows notification so the stream can apply backpressure'",
+          "oldLine": 102,
+          "newLine": 107
+        },
+        {
+          "operator": "positive.toHaveBeenCalledWith",
+          "before": "expect(send).toHaveBeenCalledWith(message)",
+          "after": "assert.ok((send).mock.calls.some(call => isDeepStrictEqual(call.arguments, [message])))",
+          "title": "'Node-RED forwards application messages even when logging fails'",
+          "oldLine": 146,
+          "newLine": 151
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(console.info).toBe(current)",
+          "after": "assert.strictEqual((console.info), current)",
+          "title": "'retiring console wrappers cannot replace newer instrumentation'",
+          "oldLine": 168,
+          "newLine": 173
+        },
+        {
+          "operator": "not.toHaveBeenCalled",
+          "before": "expect(log).not.toHaveBeenCalled()",
+          "after": "assert.strictEqual((log).mock.calls.length, 0)",
+          "title": "'console capture excludes its own asynchronous export diagnostics without an OTel context manager'",
+          "oldLine": 183,
+          "newLine": 188
+        },
+        {
+          "operator": "positive.toHaveBeenCalledTimes",
+          "before": "expect(log).toHaveBeenCalledTimes(1)",
+          "after": "assert.strictEqual((log).mock.calls.length, 1)",
+          "title": "'console capture excludes its own asynchronous export diagnostics without an OTel context manager'",
+          "oldLine": 185,
+          "newLine": 190
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(calls).toBe(0)",
+          "after": "assert.strictEqual((calls), 0)",
+          "title": "'bounded serialization does not invoke getters, toJSON, or expand Buffers'",
+          "oldLine": 203,
+          "newLine": 208
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(serialized).toContain('10000000 bytes')",
+          "after": "assert.ok((serialized).includes('10000000 bytes'))",
+          "title": "'bounded serialization does not invoke getters, toJSON, or expand Buffers'",
+          "oldLine": 204,
+          "newLine": 209
+        },
+        {
+          "operator": "positive.toBeLessThan",
+          "before": "expect(serialized.length).toBeLessThan(1024)",
+          "after": "lessThan(serialized.length, 1024)",
+          "title": "'bounded serialization does not invoke getters, toJSON, or expand Buffers'",
+          "oldLine": 205,
+          "newLine": 210
+        },
+        {
+          "operator": "positive.toBeLessThan",
+          "before": "expect(safeStringify(wide).length).toBeLessThan(20000)",
+          "after": "lessThan(safeStringify(wide).length, 20000)",
+          "title": "'bounded serialization does not invoke getters, toJSON, or expand Buffers'",
+          "oldLine": 212,
+          "newLine": 217
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(safeStringify({ one: 1n })).toContain('1n')",
+          "after": "assert.ok((safeStringify({ one: 1n })).includes('1n'))",
+          "title": "'bounded serialization does not invoke getters, toJSON, or expand Buffers'",
+          "oldLine": 213,
+          "newLine": 218
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(detectSensitiveData('token', patterns)).toBe(true)",
+          "after": "assert.strictEqual((detectSensitiveData('token', patterns)), true)",
+          "title": "'global regexes are deterministic and unsupported custom syntax fails validation'",
+          "oldLine": 218,
+          "newLine": 223
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(detectSensitiveData('token', patterns)).toBe(true)",
+          "after": "assert.strictEqual((detectSensitiveData('token', patterns)), true)",
+          "title": "'global regexes are deterministic and unsupported custom syntax fails validation'",
+          "oldLine": 219,
+          "newLine": 224
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(\n    ConfigService.validate({\n      appName: 'test',\n      transport: { url: 'http://localhost', type: 'otlp' },\n      filter: { patterns: [/token(?==)/] },\n    }).join(),\n  ).toContain('ELVEN_MATCHER_UNSUPPORTED_PATTERN')",
+          "after": "assert.ok((ConfigService.validate({\n      appName: 'test',\n      transport: { url: 'http://localhost', type: 'otlp' },\n      filter: { patterns: [/token(?==)/] },\n    }).join()).includes('ELVEN_MATCHER_UNSUPPORTED_PATTERN'))",
+          "title": "'global regexes are deterministic and unsupported custom syntax fails validation'",
+          "oldLine": 220,
+          "newLine": 225
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(\n    ConfigService.validate({\n      appName: 'test',\n      transport: {\n        url: 'file:///etc/passwd',\n        type: 'otlp',\n        maxRetries: Infinity,\n      },\n    }).join(),\n  ).toContain('finite')",
+          "after": "assert.ok((ConfigService.validate({\n      appName: 'test',\n      transport: {\n        url: 'file:///etc/passwd',\n        type: 'otlp',\n        maxRetries: Infinity,\n      },\n    }).join()).includes('finite'))",
+          "title": "'global regexes are deterministic and unsupported custom syntax fails validation'",
+          "oldLine": 227,
+          "newLine": 230
+        },
+        {
+          "operator": "positive.toBeGreaterThanOrEqual",
+          "before": "expect(tracker.getTotalSize()).toBeGreaterThanOrEqual(1_000_000)",
+          "after": "greaterOrEqual(tracker.getTotalSize(), 1_000_000)",
+          "title": "'memory accounting includes nested Buffer data'",
+          "oldLine": 249,
+          "newLine": 250
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(tracker.getTotalSize()).toBe(0)",
+          "after": "assert.strictEqual((tracker.getTotalSize()), 0)",
+          "title": "'memory accounting includes nested Buffer data'",
+          "oldLine": 251,
+          "newLine": 252
+        },
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(pool.execute('process', 'overflow')).rejects.toThrow(\n    'queue limit',\n  )",
+          "after": "rejectsToThrow(pool.execute('process', 'overflow'), 'queue limit')",
+          "title": "'workers bound saturation, settle active tasks on destroy, and reject new work'",
+          "oldLine": 267,
+          "newLine": 268
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(pool.getMetrics().queueLength).toBe(1)",
+          "after": "assert.strictEqual((pool.getMetrics().queueLength), 1)",
+          "title": "'workers bound saturation, settle active tasks on destroy, and reject new work'",
+          "oldLine": 270,
+          "newLine": 269
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(await active).toContain('destroyed')",
+          "after": "assert.ok((await active).includes('destroyed'))",
+          "title": "'workers bound saturation, settle active tasks on destroy, and reject new work'",
+          "oldLine": 272,
+          "newLine": 271
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(await queued).toContain('destroyed')",
+          "after": "assert.ok((await queued).includes('destroyed'))",
+          "title": "'workers bound saturation, settle active tasks on destroy, and reject new work'",
+          "oldLine": 273,
+          "newLine": 272
+        },
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(pool.execute('process', 'late')).rejects.toThrow('destroyed')",
+          "after": "rejectsToThrow(pool.execute('process', 'late'), 'destroyed')",
+          "title": "'workers bound saturation, settle active tasks on destroy, and reject new work'",
+          "oldLine": 274,
+          "newLine": 273
+        },
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(pool.execute('process', () => 1)).rejects.toThrow()",
+          "after": "rejectsToThrow(pool.execute('process', () => 1))",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 284,
+          "newLine": 283
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(normal.data).toBe('normal')",
+          "after": "assert.strictEqual((normal.data), 'normal')",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 290,
+          "newLine": 289
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(normal.execArgv).toEqual([])",
+          "after": "assert.deepStrictEqual((normal.execArgv), [])",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 291,
+          "newLine": 290
+        },
+        {
+          "operator": "positive.toBeUndefined",
+          "before": "expect(normal.nodeOptions).toBeUndefined()",
+          "after": "assert.strictEqual((normal.nodeOptions), undefined)",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 292,
+          "newLine": 291
+        },
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(pool.execute('process', 'hang')).rejects.toThrow('timeout')",
+          "after": "rejectsToThrow(pool.execute('process', 'hang'), 'timeout')",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 293,
+          "newLine": 292
+        },
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(pool.execute('process', 'exit')).rejects.toThrow('code 0')",
+          "after": "rejectsToThrow(pool.execute('process', 'exit'), 'code 0')",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 294,
+          "newLine": 293
+        },
+        {
+          "operator": "rejects.toThrow",
+          "before": "expect(pool.execute('process', 'crash')).rejects.toThrow(\n      'fixture crash',\n    )",
+          "after": "rejectsToThrow(pool.execute('process', 'crash'), 'fixture crash')",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 295,
+          "newLine": 294
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect((await pool.execute('process', 'recovered')).data).toBe('recovered')",
+          "after": "assert.strictEqual(((await pool.execute('process', 'recovered')).data), 'recovered')",
+          "title": "'workers recover after clone failure, timeout, and a clean early exit'",
+          "oldLine": 298,
+          "newLine": 295
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(dlq.size()).toBe(0)",
+          "after": "assert.strictEqual((dlq.size()), 0)",
+          "title": "'oversized single file DLQ entry terminates, private files do not expose contents'",
+          "oldLine": 315,
+          "newLine": 312
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(readFileSync(file, 'utf8')).toBe('')",
+          "after": "assert.strictEqual((readFileSync(file, 'utf8')), '')",
+          "title": "'oversized single file DLQ entry terminates, private files do not expose contents'",
+          "oldLine": 317,
+          "newLine": 314
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(statSync(file).mode & 0o777).toBe(0o600)",
+          "after": "assert.strictEqual((statSync(file).mode & 0o777), 0o600)",
+          "title": "'oversized single file DLQ entry terminates, private files do not expose contents'",
+          "oldLine": 318,
+          "newLine": 315
+        },
+        {
+          "operator": "positive.toEqual",
+          "before": "expect(paths).toEqual([\n        mode === 'exact' ? '/gateway/custom' : '/v1/logs',\n      ])",
+          "after": "assert.deepStrictEqual((paths), [\n        mode === 'exact' ? '/gateway/custom' : '/v1/logs',\n      ])",
+          "title": "'real compressed OTLP export (%s) is bounded, redacted, and correlated'",
+          "oldLine": 366,
+          "newLine": 363
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(body).toContain('local-log')",
+          "after": "assert.ok((body).includes('local-log'))",
+          "title": "'real compressed OTLP export (%s) is bounded, redacted, and correlated'",
+          "oldLine": 370,
+          "newLine": 367
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(body).toContain('request-123')",
+          "after": "assert.ok((body).includes('request-123'))",
+          "title": "'real compressed OTLP export (%s) is bounded, redacted, and correlated'",
+          "oldLine": 371,
+          "newLine": 368
+        },
+        {
+          "operator": "positive.toContain",
+          "before": "expect(body).toContain('2000000 bytes')",
+          "after": "assert.ok((body).includes('2000000 bytes'))",
+          "title": "'real compressed OTLP export (%s) is bounded, redacted, and correlated'",
+          "oldLine": 372,
+          "newLine": 369
+        },
+        {
+          "operator": "not.toContain",
+          "before": "expect(body).not.toContain('private-value')",
+          "after": "assert.ok(!(body).includes('private-value'))",
+          "title": "'real compressed OTLP export (%s) is bounded, redacted, and correlated'",
+          "oldLine": 373,
+          "newLine": 370
+        },
+        {
+          "operator": "not.toContain",
+          "before": "expect(body).not.toContain('secret-value')",
+          "after": "assert.ok(!(body).includes('secret-value'))",
+          "title": "'real compressed OTLP export (%s) is bounded, redacted, and correlated'",
+          "oldLine": 374,
+          "newLine": 371
+        },
+        {
+          "operator": "positive.toBeLessThan",
+          "before": "expect(bodies[0].length).toBeLessThan(20_000)",
+          "after": "lessThan(bodies[0].length, 20_000)",
+          "title": "'real compressed OTLP export (%s) is bounded, redacted, and correlated'",
+          "oldLine": 375,
+          "newLine": 372
+        },
+        {
+          "operator": "positive.toBe",
+          "before": "expect(config.transport?.logsUrl).toBe('https://collector.test/custom/logs')",
+          "after": "assert.strictEqual((config.transport?.logsUrl), 'https://collector.test/custom/logs')",
+          "title": "'signal-specific OTLP environment endpoint stays exact'",
+          "oldLine": 389,
+          "newLine": 386
+        }
+      ],
+      "mocks": [
+        {
+          "kind": "fn",
+          "before": "jest.fn(async () => {\n      complete();\n    })"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(async () => {\n      throw Object.assign(new Error('offline'), { code: 'ECONNREFUSED' });\n    })"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn(async () => undefined)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "mockImplementation",
+          "before": "jest.spyOn(logger, 'info').mockImplementation(() => {\n    throw new Error('log failure');\n  })"
+        },
+        {
+          "kind": "mockReturnValue",
+          "before": "jest.spyOn(api, 'init').mockReturnValue(logger)"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        },
+        {
+          "kind": "fn",
+          "before": "jest.fn()"
+        }
+      ]
+    }
+  ],
+  "caseInventory": [
+    {
+      "title": "Environment configuration (LOGS_*) should load required LOGS_* fields",
+      "oldAssertions": 3,
+      "newAssertions": 3,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Environment configuration (LOGS_*) should use the shared OTLP collector without Loki credentials",
+      "oldAssertions": 5,
+      "newAssertions": 5,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Environment configuration (LOGS_*) should preserve explicit zero values",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Environment configuration (LOGS_*) should load labels from LOGS_LABEL_* prefix",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Environment configuration (LOGS_*) should resolve economy defaults without worker threads",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Initialization should initialize with valid config",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Initialization should throw error with invalid config",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Logging should log messages at different levels",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Logging should support context propagation API",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Flush should flush logs and propagate transport errors",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Metrics and Health should return expanded metrics",
+      "oldAssertions": 5,
+      "newAssertions": 5,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Metrics and Health should return health status",
+      "oldAssertions": 3,
+      "newAssertions": 3,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Features should support Brotli compression",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Features should support Gzip compression",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Logs Interceptor - Integration Tests Features should support Dead Letter Queue",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "over-budget configuration is rejected before visiting any pattern",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "a rejected combined matcher plan does not retire the active logger",
+      "oldAssertions": 5,
+      "newAssertions": 5,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "custom linear policy covers the whole OTLP wire, all fields and selectors without mutating callers",
+      "oldAssertions": 18,
+      "newAssertions": 18,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "accepted policy with unsupported live Unicode fails closed without throwing through business logging",
+      "oldAssertions": 4,
+      "newAssertions": 4,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "memory safety coalesces immediate flush requests",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "memory safety bounds large structured contexts before buffering",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "memory safety drops old queued batches when the flush backlog reaches its limit",
+      "oldAssertions": 4,
+      "newAssertions": 4,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: message / high",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: message / low",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: selector / high",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: selector / low",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: context-key / high",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: context-key / low",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: context-value / high",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: context-value / low",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: record-label / high",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: record-label / low",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: resource / high",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "default malformed UTF-16 privacy whole OTLP wire fails closed: resource / low",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: message / high",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: message / low",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: selector / high",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: selector / low",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: context-key / high",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: context-key / low",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: context-value / high",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: context-value / low",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: record-label / high",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: record-label / low",
+      "oldAssertions": 6,
+      "newAssertions": 6,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: resource / high",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "generic-control malformed UTF-16 privacy whole OTLP wire fails closed: resource / low",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "valid astral Unicode remains intact on default native policy, while ordinary PII still masks",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "explicit sanitize false remains a privacy opt-out rather than a failure fallback",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "label budget sentinels remain string-valued and snapshots do not call accessors",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "whole OTLP payload applies default label privacy to Resource and records without source mutation",
+      "oldAssertions": 19,
+      "newAssertions": 19,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "whole OTLP payload applies custom label privacy to Resource and records without source mutation",
+      "oldAssertions": 19,
+      "newAssertions": 19,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "whole OTLP payload applies disabled label privacy to Resource and records without source mutation",
+      "oldAssertions": 19,
+      "newAssertions": 19,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "shutdown deadline settles even when a transport has not completed its send",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "destroy cancels retry backoff without performing another network attempt",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Winston callback follows notification so the stream can apply backpressure",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "Node-RED forwards application messages even when logging fails",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "retiring console wrappers cannot replace newer instrumentation",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "console capture excludes its own asynchronous export diagnostics without an OTel context manager",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "bounded serialization does not invoke getters, toJSON, or expand Buffers",
+      "oldAssertions": 5,
+      "newAssertions": 5,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "global regexes are deterministic and unsupported custom syntax fails validation",
+      "oldAssertions": 4,
+      "newAssertions": 4,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "memory accounting includes nested Buffer data",
+      "oldAssertions": 2,
+      "newAssertions": 2,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "workers bound saturation, settle active tasks on destroy, and reject new work",
+      "oldAssertions": 5,
+      "newAssertions": 5,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "workers recover after clone failure, timeout, and a clean early exit",
+      "oldAssertions": 8,
+      "newAssertions": 8,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "oversized single file DLQ entry terminates, private files do not expose contents",
+      "oldAssertions": 3,
+      "newAssertions": 3,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "real compressed OTLP export (base) is bounded, redacted, and correlated",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "real compressed OTLP export (exact) is bounded, redacted, and correlated",
+      "oldAssertions": 7,
+      "newAssertions": 7,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    },
+    {
+      "title": "signal-specific OTLP environment endpoint stays exact",
+      "oldAssertions": 1,
+      "newAssertions": 1,
+      "oldStatus": "passed",
+      "newStatus": "passed"
+    }
+  ],
+  "limitations": "Matching names/counts is not semantic proof alone. Operator, asymmetric subset, mock/spy, callback ordering and restoration conversions require review. Counter delegates every assertion to the actual Node builtin, is optional/inventory-only and not the production test runner."
+}

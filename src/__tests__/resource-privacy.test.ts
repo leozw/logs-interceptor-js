@@ -1,3 +1,8 @@
+import assert from 'node:assert/strict';
+import { lessThan } from '../../test-support/assertions';
+import { afterEach, test } from 'node:test';
+import { isDeepStrictEqual } from 'node:util';
+import { eachTest } from '../../test-support/data-provider';
 import { createServer } from 'node:http';
 import { gunzipSync } from 'node:zlib';
 import { parse } from 'protobufjs';
@@ -20,19 +25,19 @@ test('label budget sentinels remain string-valued and snapshots do not call acce
   let accessed = 0;
   const source = Object.fromEntries(Array.from({ length: 32 }, (_, index) => [`label_${index}`, 'x'.repeat(20000)]));
   const bounded: Record<string, string> = applyLabelPolicy(source, { sanitize: false, sensitivePatterns: [] });
-  expect(Object.values(bounded).every(value => typeof value === 'string')).toBe(true);
-  expect(typeof bounded._truncated).toBe('string');
-  expect(Buffer.byteLength(JSON.stringify(bounded))).toBeLessThan(20000);
-  expect(source.label_0).toHaveLength(20000);
+  assert.strictEqual((Object.values(bounded).every(value => typeof value === 'string')), true);
+  assert.strictEqual((typeof bounded._truncated), 'string');
+  lessThan(Buffer.byteLength(JSON.stringify(bounded)), 20000);
+  assert.strictEqual((source.label_0).length, 20000);
   const input = { _truncated: true, nested: { password: 'private' } };
   Object.defineProperty(input, 'getter', { enumerable: true, get() { accessed++; return 'private'; } });
   const normalized: Record<string, string> = applyLabelPolicy(input, { sanitize: true, sensitivePatterns: [/password/i] });
-  expect(normalized._truncated).toBe('true');
-  expect(normalized.nested).toBe('[INVALID_LABEL_VALUE]');
-  expect(accessed).toBe(0);
+  assert.strictEqual((normalized._truncated), 'true');
+  assert.strictEqual((normalized.nested), '[INVALID_LABEL_VALUE]');
+  assert.strictEqual((accessed), 0);
 });
 
-test.each(['default', 'custom', 'disabled'] as const)(
+eachTest(['default', 'custom', 'disabled'] as const)(
   'whole OTLP payload applies %s label privacy to Resource and records without source mutation',
   async mode => {
     const bodies: Buffer[] = [];
@@ -64,25 +69,25 @@ test.each(['default', 'custom', 'disabled'] as const)(
       });
       logger.info('resource-policy-log');
       await logger.flush();
-      expect(bodies).toHaveLength(1);
+      assert.strictEqual((bodies).length, 1);
       const body = bodies[0];
-      expect(body.toString()).toContain('resource-policy-log');
+      assert.ok((body.toString()).includes('resource-policy-log'));
       const decoded = requestType.toObject(requestType.decode(body));
-      expect(decoded.resourceLogs).toHaveLength(1);
+      assert.strictEqual((decoded.resourceLogs).length, 1);
       const resourceAttributes = decoded.resourceLogs[0].resource.attributes;
       const recordAttributes = decoded.resourceLogs[0].scopeLogs[0].logRecords[0].attributes;
       for (const [key, original] of Object.entries(labels)) {
         const redacted = mode !== 'disabled' && (key === 'password' || key === 'email' || (mode === 'custom' && key === 'organization'));
         const expected = redacted ? '[REDACTED]' : original;
         // Search the complete decompressed protobuf, not just the log body.
-        expect(body.includes(Buffer.from(original))).toBe(!redacted);
-        expect(resourceAttributes).toEqual(expect.arrayContaining([{ key, value: { stringValue: expected } }]));
-        expect(recordAttributes).toEqual(expect.arrayContaining([{ key, value: { stringValue: expected } }]));
+        assert.strictEqual((body.includes(Buffer.from(original))), !redacted);
+        assert.ok(([{ key, value: { stringValue: expected } }]).every((expected: unknown) => (resourceAttributes).some((actual: unknown) => isDeepStrictEqual(actual, expected))));
+        assert.ok(([{ key, value: { stringValue: expected } }]).every((expected: unknown) => (recordAttributes).some((actual: unknown) => isDeepStrictEqual(actual, expected))));
       }
-      expect(labels.password).toBe('synthetic-resource-password-9b2d');
-      expect(labels.email).toBe('synthetic-resource-email@example.invalid');
-      expect(Object.isFrozen(labels)).toBe(true);
-      expect(Object.keys(labels)).toEqual(['password', 'email', 'organization', 'plain']);
+      assert.strictEqual((labels.password), 'synthetic-resource-password-9b2d');
+      assert.strictEqual((labels.email), 'synthetic-resource-email@example.invalid');
+      assert.strictEqual((Object.isFrozen(labels)), true);
+      assert.deepStrictEqual((Object.keys(labels)), ['password', 'email', 'organization', 'plain']);
     } finally {
       await destroy();
       server.closeAllConnections();

@@ -8,7 +8,7 @@ export interface ICompressor {
    * @param data Data to compress (string or Buffer)
    * @returns Compressed data as Buffer
    */
-  compress(data: string | Buffer): Promise<Buffer>;
+  compress(data: string | Buffer, signal?: AbortSignal): Promise<Buffer>;
 
   /**
    * Get Content-Encoding header value

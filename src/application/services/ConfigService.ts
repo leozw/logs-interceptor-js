@@ -3,7 +3,8 @@
  * Handles configuration loading, validation, and resolution
  */
 import { LogLevel } from '../../domain/value-objects/LogLevel';
-import safeRegex from 'safe-regex2';
+import { validateMatcherPatterns } from '../../infrastructure/privacy/MatcherPolicy';
+import { configSnapshot } from '../config/ConfigSnapshot';
 import {
   BufferConfig,
   CircuitBreakerConfig,
@@ -19,9 +20,11 @@ export class ConfigService {
    * Validate configuration
    */
   static validate(config: Partial<LogsInterceptorConfig>): string[] {
+    config = configSnapshot(config);
     const errors: string[] = [];
     const ranges: Array<[string, number | undefined, number, number]> = [
       ['transport.timeout', config.transport?.timeout, 1, 60_000],
+      ['transport.sendTimeoutMillis', config.transport?.sendTimeoutMillis, 1, 60_000],
       ['transport.maxRetries', config.transport?.maxRetries, 0, 5],
       ['transport.retryDelay', config.transport?.retryDelay, 0, 10_000],
       ['transport.maxWorkers', config.transport?.maxWorkers, 1, 16],
@@ -58,7 +61,6 @@ export class ConfigService {
         1,
         60_000,
       ],
-      ['deadLetterQueue.maxSize', config.deadLetterQueue?.maxSize, 1, 10_000],
       [
         'performance.shutdownTimeoutMillis',
         config.performance?.shutdownTimeoutMillis,
@@ -80,6 +82,10 @@ export class ConfigService {
         errors.push(`${name} must be finite and between ${min} and ${max}`);
       }
     }
+    const dlqSize = config.deadLetterQueue?.maxSize;
+    if (dlqSize !== undefined && (!Number.isSafeInteger(dlqSize) || dlqSize < 1 || dlqSize > 10_000)) {
+      errors.push('deadLetterQueue.maxSize must be a safe integer between 1 and 10000');
+    }
     for (const [name, labels] of [
       ['labels', config.labels],
       ['dynamicLabels', config.dynamicLabels],
@@ -100,19 +106,22 @@ export class ConfigService {
     ]) {
       if (
         patterns &&
-        (patterns.length > 32 ||
+        (!Array.isArray(patterns) || patterns.length > 32 ||
           patterns.some(
             (pattern) =>
               !(pattern instanceof RegExp) ||
-              pattern.source.length > 256 ||
-              !safeRegex(pattern),
+              pattern.source.length > 256,
           ))
       ) {
         errors.push(
-          'Filter patterns must contain at most 32 safe regular expressions (256 characters each)',
+          'Filter patterns must contain at most 32 RegExp inputs (256 characters each)',
         );
       }
     }
+    if (
+      (config.filter?.patterns && !validateMatcherPatterns(config.filter.patterns)) ||
+      (config.filter?.sanitize !== false && config.filter?.sensitivePatterns && !validateMatcherPatterns(config.filter.sensitivePatterns))
+    ) errors.push('ELVEN_MATCHER_UNSUPPORTED_PATTERN');
 
     if (!config.transport?.url) {
       errors.push('Transport URL is required');
@@ -258,6 +267,7 @@ export class ConfigService {
    * Resolve configuration with defaults
    */
   static resolve(config: LogsInterceptorConfig): ResolvedLogsInterceptorConfig {
+    config = configSnapshot(config);
     return {
       transport: this.resolveTransport(config.transport, config.performance),
       appName: config.appName,
@@ -306,6 +316,7 @@ export class ConfigService {
       authToken: transport?.authToken ?? '',
       headers: transport?.headers ?? {},
       timeout: transport?.timeout ?? 5_000,
+      sendTimeoutMillis: transport?.sendTimeoutMillis ?? 30_000,
       maxRetries: transport?.maxRetries ?? 1,
       retryDelay: transport?.retryDelay ?? 1_000,
       compression,
