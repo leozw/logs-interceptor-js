@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { spawnSync, execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const evidence = path.dirname(root);
-const output = path.join(root, '.rebuild/legacy-retry-qualification');
+const output = path.join(root, '.rebuild/legacy-final-qualification');
 fs.mkdirSync(path.join(output, 'home'), { recursive: true });
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const environment = { PATH: '/usr/bin:/bin', HOME: path.join(output, 'home') };
