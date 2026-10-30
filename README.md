@@ -32,7 +32,10 @@ replaced by the modern `elven-logs-interceptor` package.
 ### Pattern Policy Migration
 
 The source-owned matcher core is copied exactly from reviewed modern commit
-`33f98323500aa259209fb7c10f034b8579aa52b6`, not a separately invented engine.
+`0d04a335d23ed7a18057a206503d4e8aa3ca53c1`, not a separately invented engine.
+This parent-authorized UTF16 correction is intermediate: final tuple and fresh
+independent review remain mandatory. The prior33 core is rejected; its archive
+and all historical evidence remain immutable.
 Only its exact14 internally owned, certified default/builtin rules use native
 matching. Other caller rules use re2js2.9.1 with an AST semantic adapter; no
 arbitrary native RegExp fallback or heuristic safety certificate is used.

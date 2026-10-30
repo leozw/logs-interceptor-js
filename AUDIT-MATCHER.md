@@ -9,9 +9,13 @@ engine graph. Exact minimum and current artifact tests are separate gates.
 
 ## Source Identity And Safety Boundary
 
-The portable core and typed policy wrapper originate at reviewed modern commit
-33f98323500aa259209fb7c10f034b8579aa52b6. The core is an exact byte copy, SHA256
-e92153c44512ba3e4bb31fa120dc2159125b549fa9be91e84266024ca8871263.
+The portable core and unchanged typed policy wrapper originate at intermediate
+modern commit 0d04a335d23ed7a18057a206503d4e8aa3ca53c1. The core is an exact byte copy, SHA256
+a718349bd757cc16fb37e3ccd4f38732e627bcd0c6dfa78fde89890157e23afe.
+The parent authorized copying this UTF16 correction, not promotion. Final tuple
+and fresh independent review remain mandatory. Prior33/e921 core and local49cd/
+97877f8b archive are rejected by the default-native lone-surrogate finding;
+their green37 results do not waive it. Historical bytes remain immutable.
 src/infrastructure/privacy/shared-core.json records origin and dependencies.
 Safety-policy changes must be shared/reviewed, not independently forked here.
 Build copies the .cjs and origin manifest into the actual package.
@@ -86,13 +90,18 @@ LR/drop-count regressions. All 17 original historical assertions/titles remain
 mapped by tests/jest-port-inventory.cjs; original source/Jest config unchanged.
 No claim is made that these equal the modern 41-case Jest suite.
 
-Seven matcher cases add exact core identity, actual custom backend calls,
+Eight matcher cases add exact core identity, actual custom backend calls,
 owned child watchdogs for original64a and engine-reaching near-miss inputs on
 six info paths/direct utils/static init, default lazy masks, JSON/protobuf
 correlation privacy/IDs, previous-runtime preservation/ownership, enum health, ordinary
 scalar budgets, source/count rejection and rule-state/order migration. The
 500-field public fixture retains the OLD snapshot caps; full500-scalar matching
 is checked separately. Test harness deadlines are containment, not the fix.
+The added UTF16 case exercises 48 actual public JSON/protobuf combinations:
+default/generic policy, high/low lone surrogate and six sites. Context-key masking
+retains the old key shape but hides its associated value. Selector safety is
+checked with explicit sanitize:false. Twelve valid astral/BOM/NBSP wire controls
+preserve ordinary values and existing Bearer masks.
 
 New source/lock/archive identity, fresh exact-minimum and maintained Linux
 runtime/clean-consumer checks, actual transports, strict declarations, advisory

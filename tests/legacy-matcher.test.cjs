@@ -29,10 +29,10 @@ async function decode(request) {
     const bytes = await require('snappy').uncompress(request.bytes);
     const type = require('protobufjs').parse(require('../dist/infrastructure/transport/proto/loki-proto').LOKI_PROTO).root.lookupType('logproto.PushRequest');
     const payload = type.decode(bytes);
-    return { text: JSON.stringify(payload), rows: payload.streams.flatMap(stream => stream.entries.map(entry => JSON.parse(entry.line))) };
+    return { text: JSON.stringify(payload), selectors: payload.streams.map(stream => stream.labels), rows: payload.streams.flatMap(stream => stream.entries.map(entry => JSON.parse(entry.line))) };
   }
   const payload = JSON.parse(request.bytes.toString());
-  return { text: JSON.stringify(payload), rows: payload.streams.flatMap(stream => stream.values.map(([, line]) => JSON.parse(line))) };
+  return { text: JSON.stringify(payload), selectors: payload.streams.map(stream => stream.stream), rows: payload.streams.flatMap(stream => stream.values.map(([, line]) => JSON.parse(line))) };
 }
 
 async function childOperation(spec) {
@@ -90,8 +90,8 @@ if (process.argv[2] === '--matcher-child') {
     const origin = require('../dist/infrastructure/privacy/shared-core.json');
     const bytes = fs.readFileSync(require.resolve('../dist/infrastructure/privacy/matcher-core.cjs'));
     assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), origin.sha256);
-    assert.equal(origin.sourceCommit, '33f98323500aa259209fb7c10f034b8579aa52b6');
-    assert.equal(origin.sha256, 'e92153c44512ba3e4bb31fa120dc2159125b549fa9be91e84266024ca8871263');
+    assert.equal(origin.sourceCommit, '0d04a335d23ed7a18057a206503d4e8aa3ca53c1');
+    assert.equal(origin.sha256, 'a718349bd757cc16fb37e3ccd4f38732e627bcd0c6dfa78fde89890157e23afe');
     const pattern = /(a|aa)+b/;
     pattern.test = pattern.exec = () => { throw new Error('Caller native method invoked'); };
     const policy = new core.Policy({ sensitive: [pattern] }); const call = policy.begin();
@@ -154,6 +154,53 @@ if (process.argv[2] === '--matcher-child') {
       await previous.destroy(); assert.equal(api.getLogger(), replacement);
       replacement.info('replacement-still-owned'); await replacement.flush();
       assert.ok((await decode(target.requests.at(-1))).text.includes('replacement-still-owned'));
+    } finally { await target.close(); }
+  });
+
+  test('public UTF16 default and generic policies fail closed on six sites while valid wire controls survive', async () => {
+    const target = await receiver(); const failures = []; const rows = [];
+    try {
+      for (const compression of ['none', 'snappy']) for (const generic of [false, true]) {
+        for (const unit of ['\ud800', '\udc00']) for (const site of ['message', 'selector', 'context-key', 'context-value', 'dynamic-label', 'static-label']) {
+          const config = options(target.url); config.transport.compression = compression;
+          if (generic) config.filter = { sensitivePatterns: [...core.DEFAULTS, /unmatchable(?:custom)/u] };
+          if (site === 'selector') config.filter = { ...config.filter, sanitize: false, patterns: [generic ? /password(?:)/u : /password/i] };
+          const value = 'ordinary' + unit; const key = 'field' + unit;
+          if (site === 'dynamic-label') config.dynamicLabels = { note: () => value };
+          if (site === 'static-label') config.labels = { note: value };
+          const logger = api.init(config); const before = target.requests.length;
+          const context = site === 'context-key' ? { [key]: 'unpaired-key-marker' } : site === 'context-value' ? { note: value } : {};
+          logger.info(site === 'selector' ? 'password' + unit : site === 'message' ? value : 'ordinary', context);
+          await logger.flush(); const codes = logger.getHealth().privacyCodes;
+          const row = { compression, generic, unit: unit.charCodeAt(0).toString(16), site, codes, sent: target.requests.length - before };
+          try {
+            assert.ok(codes.includes('ELVEN_MATCHER_UNSUPPORTED_INPUT'));
+            assert.equal(logger.getHealth().healthy, false);
+            assert.ok(codes.every(code => Object.values(core.CODES).includes(code)));
+            if (site === 'selector') { assert.equal(row.sent, 0); assert.equal(logger.getMetrics().logsDropped, 1); }
+            else {
+              assert.equal(row.sent, 1); const wire = await decode(target.requests.at(-1)); const entry = wire.rows[0];
+              if (site === 'message') assert.equal(entry.message, '[REDACTED]');
+              else if (site === 'context-key') assert.equal(entry.context[key], '[REDACTED]');
+              else if (site === 'context-value') assert.equal(entry.context.note, '[REDACTED]');
+              else if (compression === 'snappy') assert.ok(wire.selectors[0].includes('note="[REDACTED]"'));
+              else assert.equal(wire.selectors[0].note, '[REDACTED]');
+            }
+          } catch (error) { failures.push({ ...row, error: error.message }); }
+          rows.push(row); await api.destroy();
+        }
+        for (const message of ['ordinary\ud83d\ude00\u00a0\ufeff', 'Bearer\u00a0synthetic-unicode', 'Bearer\ufeffsynthetic-unicode']) {
+          const config = options(target.url); config.transport.compression = compression;
+          if (generic) config.filter = { sensitivePatterns: [...core.DEFAULTS, /unmatchable(?:custom)/u] };
+          const logger = api.init(config); logger.info(message, { note: 'ordinary\ud83d\ude00\u00a0\ufeff' }); await logger.flush();
+          const entry = (await decode(target.requests.at(-1))).rows[0];
+          assert.equal(entry.message, message.startsWith('Bearer') ? '[REDACTED]' : message);
+          assert.equal(entry.context.note, 'ordinary\ud83d\ude00\u00a0\ufeff');
+          assert.deepEqual(logger.getHealth().privacyCodes, []); await api.destroy();
+        }
+      }
+      if (process.env.LEGACY_UTF16_REPORT === '1') console.log('LEGACY_UTF16_RESULTS ' + JSON.stringify({ rows, failures, validControls: 12 }));
+      assert.equal(rows.length, 48); assert.deepEqual(failures, [], JSON.stringify(failures));
     } finally { await target.close(); }
   });
 

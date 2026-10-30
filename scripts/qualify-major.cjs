@@ -10,7 +10,7 @@ fs.mkdirSync(path.join(output, 'home'), { recursive: true });
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const environment = { PATH: '/usr/bin:/bin', HOME: path.join(output, 'home') };
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-const expectedTests = 37;
+const expectedTests = 38;
 
 async function minimum() {
   assert.equal(process.platform, 'darwin'); assert.equal(process.arch, 'arm64');
