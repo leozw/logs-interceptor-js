@@ -11,14 +11,15 @@
   "scripts": {
     "build": "node scripts/build.cjs",
     "build:watch": "tsc --watch",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test": "node scripts/test.cjs",
+    "test:port": "node scripts/test-inventory.cjs",
     "test:matcher": "node --test scripts/matcher-security.test.cjs scripts/matcher-contracts.test.cjs",
     "test:consumer": "node scripts/qualify-consumer.cjs",
-    "test:watch": "jest --watch",
+    "test:watch": "node scripts/test-watch.cjs",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "dev": "ts-node src/index.ts",
-    "prepublishOnly": "npm run lint && npm run build && npm test -- --runInBand && npm run test:matcher && npm run test:consumer"
+    "prepublishOnly": "npm run lint && npm run build && npm test && npm run test:port && npm run test:matcher && npm run test:consumer"
   },
   "keywords": [
     "loki",
@@ -51,15 +52,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/jest": "^30.0.0",
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.35.0",
     "eslint": "^10.13.0",
-    "jest": "^30.0.3",
     "morgan": "^1.10.1",
-    "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.54.0",

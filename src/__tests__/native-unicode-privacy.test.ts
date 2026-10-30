@@ -1,3 +1,6 @@
+import assert from 'node:assert/strict';
+import { afterEach, test } from 'node:test';
+import { eachTest, eachDescribe } from '../../test-support/data-provider';
 import { createServer } from 'node:http';
 import { destroy, init } from '../index';
 import { ConfigService } from '../application/services/ConfigService';
@@ -6,8 +9,8 @@ const canary = 'OWNER_NATIVE_CANARY_57821';
 const sites = ['message', 'selector', 'context-key', 'context-value', 'record-label', 'resource'] as const;
 afterEach(async () => { await destroy(); });
 
-describe.each(['default', 'generic-control'] as const)('%s malformed UTF-16 privacy', mode => {
-  test.each(sites.flatMap(site => (['high', 'low'] as const).map(surrogate => [site, surrogate] as const)))(
+eachDescribe(['default', 'generic-control'] as const)('%s malformed UTF-16 privacy', mode => {
+  eachTest(sites.flatMap(site => (['high', 'low'] as const).map(surrogate => [site, surrogate] as const)))(
     'whole OTLP wire fails closed: %s / %s', async (site, surrogate) => {
       const bodies: Buffer[] = [];
       const server = createServer((req, res) => {
@@ -35,15 +38,15 @@ describe.each(['default', 'generic-control'] as const)('%s malformed UTF-16 priv
         });
         logger.info(site === 'selector' ? broken + 'token ' + payload : site === 'message' ? payload : 'ordinary event', context);
         await logger.flush();
-        expect(bodies).toHaveLength(site === 'selector' ? 0 : 1);
-        expect(Buffer.concat(bodies).includes(Buffer.from(canary))).toBe(false);
-        expect(logger.getHealth().privacyDiagnostics).toEqual(['ELVEN_MATCHER_UNSUPPORTED_INPUT']);
-        expect(logger.getHealth().healthy).toBe(false);
-        if (site === 'selector') expect(logger.getMetrics().logsDropped).toBe(1);
-        expect(Object.isFrozen(context)).toBe(true);
-        expect(Object.isFrozen(labels)).toBe(true);
-        if (site === 'resource') expect(labels.note).toBe(payload);
-        if (site === 'context-value') expect(context.field).toBe(payload);
+        assert.strictEqual((bodies).length, site === 'selector' ? 0 : 1);
+        assert.strictEqual((Buffer.concat(bodies).includes(Buffer.from(canary))), false);
+        assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), ['ELVEN_MATCHER_UNSUPPORTED_INPUT']);
+        assert.strictEqual((logger.getHealth().healthy), false);
+        if (site === 'selector') assert.strictEqual((logger.getMetrics().logsDropped), 1);
+        assert.strictEqual((Object.isFrozen(context)), true);
+        assert.strictEqual((Object.isFrozen(labels)), true);
+        if (site === 'resource') assert.strictEqual((labels.note), payload);
+        if (site === 'context-value') assert.strictEqual((context.field), payload);
       } finally {
         await destroy(); server.closeAllConnections();
         await new Promise<void>(resolve => server.close(() => resolve()));
@@ -56,8 +59,8 @@ test('valid astral Unicode remains intact on default native policy, while ordina
   const message = 'ordinary \ud83d\ude00 \u00a0 \ufeff';
   logger.info(message); logger.info('Bearer\u00a0synthetic-private');
   const internal = logger as unknown as { buffer: { flush(): { message: string }[] } };
-  expect(internal.buffer.flush().map(entry => entry.message)).toEqual([message, '[REDACTED]']);
-  expect(logger.getHealth().privacyDiagnostics).toEqual([]);
+  assert.deepStrictEqual((internal.buffer.flush().map(entry => entry.message)), [message, '[REDACTED]']);
+  assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), []);
 });
 
 test('explicit sanitize false remains a privacy opt-out rather than a failure fallback', async () => {
@@ -65,6 +68,6 @@ test('explicit sanitize false remains a privacy opt-out rather than a failure fa
   const message = '\ud800' + canary;
   logger.info(message);
   const internal = logger as unknown as { buffer: { flush(): { message: string }[] } };
-  expect(internal.buffer.flush()[0].message).toBe(message);
-  expect(logger.getHealth().privacyDiagnostics).toEqual([]);
+  assert.strictEqual((internal.buffer.flush()[0].message), message);
+  assert.deepStrictEqual((logger.getHealth().privacyDiagnostics), []);
 });
