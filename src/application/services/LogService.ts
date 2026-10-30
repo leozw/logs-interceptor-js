@@ -285,6 +285,7 @@ export class LogService implements ILogger {
       circuitBreakerState: transportHealth.healthy ? 'closed' : 'open',
       lastError: transportHealth.errorMessage,
       privacyCodes,
+      rateLimitCodes: transportHealth.rateLimitCodes ?? [],
     };
   }
 

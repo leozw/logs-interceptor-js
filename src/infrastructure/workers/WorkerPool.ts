@@ -8,6 +8,7 @@ interface Task<T = any> {
   options?: any;
   resolve: (value: T) => void;
   reject: (error: Error) => void;
+  cleanup?: () => void;
 }
 export interface WorkerPoolConfig {
   readonly maxWorkers?: number;
@@ -25,6 +26,7 @@ export interface WorkerMetrics {
 
 export class WorkerPool {
   private workers = new Set<Worker>();
+  private terminating = new Set<Worker>();
   private availableWorkers: Worker[] = [];
   private queue: Task[] = [];
   private active = new Map<
@@ -55,6 +57,7 @@ export class WorkerPool {
   }
 
   private createWorker(): void {
+    if (this.destroyed || this.workers.size + this.terminating.size >= this.maxWorkers) return;
     const env = { ...process.env };
     delete env.NODE_OPTIONS;
     env.LOGS_INTERCEPTOR_INTERNAL_WORKER = 'true';
@@ -75,6 +78,7 @@ export class WorkerPool {
     clearTimeout(active.timer);
     worker.off('message', active.handler);
     worker.unref();
+    active.task.cleanup?.();
     if (error) {
       this.failedTasks++;
       active.task.reject(error);
@@ -90,20 +94,22 @@ export class WorkerPool {
       (item) => item !== worker,
     );
     this.settle(worker, error);
-    void worker.terminate().catch(() => {});
-    // Only replenish for queued work. Broken idle workers must not respawn forever.
-    if (!this.destroyed && this.queue.length) {
-      this.createWorker();
-      this.drainQueue();
-    }
+    this.terminating.add(worker);
+    void worker.terminate().catch(() => {}).finally(() => {
+      this.terminating.delete(worker);
+      // Replenish only after this owned worker has actually terminated.
+      if (!this.destroyed && this.queue.length) { this.createWorker(); this.drainQueue(); }
+    });
   }
 
   async execute<T = any>(
     type: Task['type'],
     data: any,
     options?: any,
+    signal?: AbortSignal,
   ): Promise<T> {
     if (this.destroyed) throw new Error('Worker pool destroyed');
+    signal?.throwIfAborted();
     if (!this.workers.size) this.createWorker();
     if (
       !this.availableWorkers.length &&
@@ -113,14 +119,24 @@ export class WorkerPool {
       throw new Error(`Worker queue limit reached (${this.maxQueueSize})`);
     }
     return new Promise<T>((resolve, reject) => {
-      this.queue.push({
+      const task: Task<T> = {
         id: ++this.totalTasks,
         type,
         data,
         options,
         resolve,
         reject,
-      });
+      };
+      if (signal) {
+        const cancel = () => {
+          const queued = this.queue.indexOf(task);
+          if (queued >= 0) { this.queue.splice(queued, 1); task.cleanup?.(); this.failedTasks++; reject(new Error('Worker task cancelled')); }
+          else for (const [worker, active] of this.active) if (active.task === task) { this.removeWorker(worker, new Error('Worker task cancelled')); break; }
+        };
+        task.cleanup = () => signal.removeEventListener('abort', cancel);
+        signal.addEventListener('abort', cancel, { once: true });
+      }
+      this.queue.push(task);
       this.drainQueue();
     });
   }
@@ -182,11 +198,12 @@ export class WorkerPool {
     if (this.destroyPromise) return this.destroyPromise;
     this.destroyed = true;
     for (const task of this.queue) {
+      task.cleanup?.();
       this.failedTasks++;
       task.reject(new Error('Worker pool destroyed'));
     }
     this.queue = [];
-    const workers = [...this.workers];
+    const workers = [...this.workers, ...this.terminating];
     for (const worker of workers)
       this.settle(worker, new Error('Worker pool destroyed'));
     this.workers.clear();

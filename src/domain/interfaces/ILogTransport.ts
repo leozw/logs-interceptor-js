@@ -8,7 +8,7 @@ export interface ILogTransport {
   /**
    * Send logs to the transport destination
    */
-  send(entries: LogEntry[]): Promise<void>;
+  send(entries: LogEntry[], signal?: AbortSignal): Promise<void>;
 
   /**
    * Check if transport is available
@@ -32,6 +32,7 @@ export interface ILogTransport {
 }
 
 export interface TransportHealth {
+  readonly rateLimitCodes?: readonly string[];
   readonly healthy: boolean;
   readonly lastSuccessfulSend?: number;
   readonly consecutiveFailures: number;

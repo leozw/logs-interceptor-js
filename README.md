@@ -86,6 +86,39 @@ keeps its old by-reference semantics until scope exit. These and application
 references are not a whole-process physical-memory guarantee. Low-level buffers
 still accept trusted LogEntry records; this does not turn them into a sandbox.
 
+### Retry-After And Operation Deadlines
+
+JSON/protobuf and their resilient wrapper honor a valid server Retry-After floor
+across attempts and later sends on the same owned transport, including zero
+retries. Separate fields use the maximum valid floor, even beside invalid fields;
+HTTP-date commas are not split. Supported calendar-validated IMF/RFC850/asctime
+dates are absolute UTC dates, mapped to a monotonic delay at response receipt.
+The Date header does not extend or shorten that floor. Delta-seconds are also
+supported. The parser bounds16 fields,4096 aggregate and1024 individual units.
+
+Invalid/ambiguous/oversized input uses finite configured local backoff and a fixed
+`ELVEN_RETRY_AFTER_INVALID` diagnostic, not a permanent park. A valid positive
+floor outside safe numeric representation explicitly degrades that owned
+transport with `ELVEN_RETRY_AFTER_UNREPRESENTABLE`; manual destroy/re-init is
+required. No Infinity timer is scheduled. Finite floors expire naturally.
+
+If a server floor cannot fit the current send budget, that call rejects promptly;
+the floor is not shortened and the batch is not retried early. The wrapper's
+total budget is the configured attempt timeout times attempts, plus the existing
+capped exponential backoffs and at most1000ms jitter per retry (defaults30000ms).
+The codec's attempt budget now includes formatting/compression/Worker wait and
+network/body read, rather than starting only at request dispatch. This optional3
+deadline migration can reject slow batches accepted by2.x. Cancellation reaches
+owned Worker tasks and Undici; a cancelled Worker does not fall back to HTTP.
+CPU/native compression and application-provided code are not forcibly preempted;
+no network attempt starts after observed cancellation. Custom transports must
+honor the optional send AbortSignal to provide cooperative cancellation.
+
+The additive health field `rateLimitCodes` contains only fixed diagnostics.
+`logsDropped` still counts bounded eviction/filter loss, not transport failure;
+inspect errorCount/transport outcomes for rejected sends. Delivery is not lossless.
+No shared codec/pool is destroyed to cancel an individual operation.
+
 Indexed `trace_id`, `span_id` and `request_id` selectors remain enabled by
 default, as in2.1.6. Known-sensitive values still follow the configured
 sanitization policy. To explicitly reduce correlation-label cardinality:

@@ -98,7 +98,7 @@ An additional native case guards exact numeric-only comparisons and the original
 rejected-toThrow Error/callback semantics, including coercion negatives and
 cross-realm errors. The AST ledger also maps operators, not only counts. Original
 clearAllMocks had no declared mocks/spies in this twelve-case suite; that does
-not establish parity for the modern mock-heavy suite. Active suite total is 46.
+not establish parity for the modern mock-heavy suite. Active suite total is 54.
 
 Seven own detachment/configuration cases add UTF16 code-unit/prefix controls,
 snapshot keys/arrays/getters/cycles, provider identity and values above512,
@@ -108,6 +108,17 @@ and no resurrection of unfiltered correlation fields after bounded omission.
 Actual GC/heap/wire matrices remain separately hash-bound evidence, not assertions
 that string equality alone proves physical detachment. Caller/provider/active
 ALS references and trusted low-level raw-buffer use remain explicit exclusions.
+
+Eight own retry cases additionally cover separate-field/date/invalid/huge
+parsing, monotonic floor expiry/deadline refusal, real public JSON/protobuf
+429/503 retry and cross-send floors, identical payload retry after delta/date,
+direct/decorated concurrent-call isolation, invalid-header recovery and huge
+manual reinit, actual network deadline/cancellation and codec reuse, and scoped
+queued/running Worker cancellation without oversubscription. A controlled owned
+Worker stalls the actual JSON formatting path; it must abort without HTTP
+fallback and leave unrelated work usable. These are synthetic local tests, not
+modern proof or AWS acceptance. Shared matcher core/wrapper/helper bytes remain
+6cf326f3/8d8f4424/c7e55d7c, unchanged by transport remediation.
 
 Eight matcher cases add exact core identity, actual custom backend calls,
 owned child watchdogs for original64a and engine-reaching near-miss inputs on
