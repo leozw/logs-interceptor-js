@@ -22,7 +22,7 @@
     "dev": "ts-node src/index.ts",
     "test:runtime": "npm run build && node --test tests/*.test.cjs",
     "test:types": "tsc --strict --skipLibCheck --noEmit --module NodeNext --moduleResolution NodeNext --target ES2020 tests/typescript-contract.ts",
-    "prepublishOnly": "npm run build && npm run test:types && npm test && node tests/jest-port-inventory.cjs"
+    "prepublishOnly": "npm run lint && npm run build && npm run test:types && npm test && node tests/jest-port-inventory.cjs && npm audit"
   },
   "keywords": [
     "loki",
@@ -70,6 +70,7 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "provenance": true
+    "provenance": true,
+    "tag": "next"
   }
 }

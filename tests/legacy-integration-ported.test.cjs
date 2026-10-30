@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+const assert = require('./assert-jest-parity.cjs');
 const { test: registerTest } = require('node:test');
 const http = require('node:http');
 const { init, getLogger, destroy } = require('../dist');
@@ -49,15 +49,15 @@ test('ported Logging: should track events', () => {
 test('ported Flush: should flush logs', async () => {
   const instance = init({ transport: transport(), appName: 'test', interceptConsole: false, buffer: { maxSize: 10, flushInterval: 1000 } });
   instance.info('Test log');
-  await assert.rejects(instance.flush());
+  await assert.rejectsToThrow(instance.flush());
 });
 
 test('ported Metrics and Health: should return metrics', () => {
   const instance = init({ transport: transport(), appName: 'test', interceptConsole: false });
   const metrics = instance.getMetrics();
   assert.notEqual(metrics, undefined);
-  assert.ok(metrics.logsProcessed >= 0);
-  assert.ok(metrics.bufferSize >= 0);
+  assert.greaterThanOrEqual(metrics.logsProcessed, 0);
+  assert.greaterThanOrEqual(metrics.bufferSize, 0);
 });
 
 test('ported Metrics and Health: should return health status', () => {
@@ -65,7 +65,7 @@ test('ported Metrics and Health: should return health status', () => {
   const health = instance.getHealth();
   assert.notEqual(health, undefined);
   assert.equal(typeof health.healthy, 'boolean');
-  assert.ok(health.uptime >= 0);
+  assert.greaterThanOrEqual(health.uptime, 0);
 });
 
 test('ported Features: should support Brotli compression', () => {

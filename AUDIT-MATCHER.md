@@ -88,7 +88,12 @@ no hard whole-process RSS, universal CPU, zero overhead or whole-app3% claim.
 The retained 30 native cases are 12 earlier runtime, 12 original Jest ports and 6
 LR/drop-count regressions. All 17 original historical assertions/titles remain
 mapped by tests/jest-port-inventory.cjs; original source/Jest config unchanged.
-No claim is made that these equal the modern 41-case Jest suite.
+No claim is made that these equal any modern Jest suite.
+An additional native case guards exact numeric-only comparisons and the original
+rejected-toThrow Error/callback semantics, including coercion negatives and
+cross-realm errors. The AST ledger also maps operators, not only counts. Original
+clearAllMocks had no declared mocks/spies in this twelve-case suite; that does
+not establish parity for the modern mock-heavy suite. Active suite total is 39.
 
 Eight matcher cases add exact core identity, actual custom backend calls,
 owned child watchdogs for original64a and engine-reaching near-miss inputs on

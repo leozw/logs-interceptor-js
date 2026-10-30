@@ -37,6 +37,7 @@ fs.symlinkSync('node_modules/logs-interceptor/preload.js', path.join(consumer, '
 fs.mkdirSync(path.join(consumer, 'tests'));
 const testFiles = fs.readdirSync(path.join(root, 'tests')).filter(file => file.endsWith('.test.cjs')).sort();
 for (const file of testFiles) fs.copyFileSync(path.join(root, 'tests', file), path.join(consumer, 'tests', file));
+fs.copyFileSync(path.join(root, 'tests/assert-jest-parity.cjs'), path.join(consumer, 'tests/assert-jest-parity.cjs'));
 fs.copyFileSync(path.join(root, 'tests/typescript-contract.ts'), path.join(consumer, 'tests/typescript-contract.ts'));
 const typed = spawnSync(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'), '--strict', '--skipLibCheck', '--noEmit', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--target', 'ES2020', '--typeRoots', path.join(root, 'node_modules/@types'), path.join(consumer, 'tests/typescript-contract.ts')], { cwd: consumer, env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
 fs.writeFileSync(path.join(consumer, 'types.log'), typed.stdout + typed.stderr);
@@ -49,4 +50,4 @@ const output = { capturedAt: new Date().toISOString(), source: receipt.source, n
 fs.writeFileSync(path.join(directory, 'packed-consumer-' + process.versions.node + '.json'), JSON.stringify(output, null, 2) + '\n');
 console.log(JSON.stringify(output));
 assert.equal(tested.status, 0);
-assert.equal(tests, 38);
+assert.equal(tests, 39);

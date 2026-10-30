@@ -17,6 +17,7 @@ assert.equal(pkg.name, 'logs-interceptor');
 assert.equal(pkg.version, '3.0.0');
 assert.equal(pkg.publishConfig.provenance, true);
 assert.equal(pkg.publishConfig.registry, 'https://registry.npmjs.org/');
+assert.equal(pkg.publishConfig.tag, 'next');
 const [packed] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--pack-destination', scratch, '--json', '--userconfig=/dev/null', '--globalconfig=' + path.join(home, 'global.npmrc'), '--cache=' + path.join(scratch, 'cache'), '--registry=https://registry.npmjs.org/'], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH || '/usr/bin:/bin', HOME: home } }));
 const files = new Set(packed.files.map(file => file.path));
 for (const file of ['dist/index.js', 'dist/index.d.ts', 'preload.js', 'RECOVERY.md', 'AUDIT-LEGACY.md', 'AUDIT-LEGACY-FOLLOWUP.md', 'AUDIT-MATCHER.md', 'dist/infrastructure/privacy/matcher-core.cjs', 'dist/infrastructure/privacy/shared-core.json']) assert.ok(files.has(file), file);
@@ -27,7 +28,7 @@ const destination = path.join(directory, packed.filename);
 if (fs.existsSync(destination)) assert.deepEqual(fs.readFileSync(destination), archive, 'Existing reviewed archive differs; preserve it and use a fresh qualification workspace');
 else fs.copyFileSync(path.join(scratch, packed.filename), destination);
 const receipt = {
-  name: pkg.name, version: pkg.version,
+  name: pkg.name, version: pkg.version, tag: pkg.publishConfig.tag,
   source,
   lockSha256: createHash('sha256').update(fs.readFileSync(path.join(root, 'package-lock.json'))).digest('hex'),
   node: process.version, filename: packed.filename,
