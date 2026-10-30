@@ -6,6 +6,9 @@ const identities = {
   'elven-opentelemetry-instrumentation-js': 'leozw/opentelemetry-instrumentation-js',
   'elven-logs-interceptor': 'leozw/logs-interceptor-js',
 };
+function validDigest(value) {
+  return typeof value === 'string' && value.length === 64 && !/[^a-f0-9]/.test(value);
+}
 function assertContext(env, pkg) {
   const repo = identities[pkg.name];
   if (!repo || env.GITHUB_REPOSITORY !== repo) throw new Error('Unexpected publishing repository/package');
@@ -13,11 +16,18 @@ function assertContext(env, pkg) {
   if (env.RUNNER_ENVIRONMENT !== 'github-hosted') throw new Error('GitHub-hosted runner required for provenance');
   if (env.GITHUB_WORKFLOW_REF !== repo + '/.github/workflows/release.yml@refs/heads/main') throw new Error('Unexpected release workflow');
   if (!/^[a-f0-9]{40}$/.test(env.EXPECTED_SHA || '') || env.EXPECTED_SHA !== env.GITHUB_SHA) throw new Error('Exact source SHA confirmation required');
-  if (env.CONFIRM !== 'publish ' + pkg.name + '@' + pkg.version + ' next' || env.EXPECTED_VERSION !== pkg.version || !/^2\.\d+\.\d+$/.test(pkg.version)) throw new Error('Exact optional-major package/version/next confirmation required');
+  if (env.PUBLISH !== 'true' && env.PUBLISH !== 'false') throw new Error('Explicit validation or publication mode required');
+  if (env.PUBLISH === 'true' ? !validDigest(env.APPROVED_ARCHIVE_SHA256) : Boolean(env.APPROVED_ARCHIVE_SHA256)) throw new Error('Exact approved archive digest required only for publication');
+  const operation = env.PUBLISH === 'true' ? 'publish' : 'validate';
+  if (env.CONFIRM !== operation + ' ' + pkg.name + '@' + pkg.version + ' next' || env.EXPECTED_VERSION !== pkg.version || !/^2\.\d+\.\d+$/.test(pkg.version)) throw new Error('Exact optional-major package/version/next confirmation required');
   if (pkg.repository?.url !== 'git+https://github.com/' + repo + '.git') throw new Error('Provenance repository metadata mismatch');
   if (pkg.publishConfig?.provenance !== true || pkg.publishConfig?.access !== 'public' || pkg.publishConfig?.registry !== 'https://registry.npmjs.org/') throw new Error('Mandatory public registry/provenance configuration missing');
   if (pkg.name !== 'elven-logs-interceptor' || pkg.publishConfig.tag !== 'next') throw new Error('Optional logger major must publish only to next');
   return repo;
+}
+function assertApprovedArchive(env, actualSha256) {
+  if (!validDigest(actualSha256)) throw new Error('Invalid archive digest');
+  if (env.PUBLISH === 'true' && actualSha256 !== env.APPROVED_ARCHIVE_SHA256) throw new Error('Archive differs from the independently approved digest');
 }
 async function get(url, token) {
   const response = await fetch(url, { headers: token ? { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json' } : {}, signal: AbortSignal.timeout(15000), redirect: 'error' });
@@ -26,6 +36,8 @@ async function get(url, token) {
 }
 async function verifyRemote(env, pkg) {
   const repo = assertContext(env, pkg);
+  const localHead = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 5000, maxBuffer: 4096 }).trim();
+  if (localHead !== env.EXPECTED_SHA) throw new Error('Local checkout source SHA mismatch');
   const api = 'https://api.github.com/repos/' + repo;
   const repository = await get(api, env.GH_TOKEN);
   if (repository.private !== false || repository.full_name !== repo || repository.default_branch !== 'main') throw new Error('Public matching repository/main required');
@@ -44,15 +56,19 @@ async function verifyRemote(env, pkg) {
 }
 function pack(pkg) {
   const result = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json'], { encoding: 'utf8' }));
-  if (result.length !== 1) throw new Error('Expected one package archive');
+  if (result.length !== 1 || result[0].name !== pkg.name || result[0].version !== pkg.version || !/^[a-z0-9.-]+\.tgz$/.test(result[0].filename)) throw new Error('Expected one matching package archive');
+  const sha256 = createHash('sha256').update(fs.readFileSync(result[0].filename)).digest('hex');
+  assertApprovedArchive(process.env, sha256);
   fs.mkdirSync('release', { recursive: true });
   fs.renameSync(result[0].filename, 'release/package.tgz');
-  fs.writeFileSync('release/receipt.json', JSON.stringify({ name: pkg.name, version: pkg.version, sha: process.env.EXPECTED_SHA, sha256: createHash('sha256').update(fs.readFileSync('release/package.tgz')).digest('hex') }, null, 2));
+  fs.writeFileSync('release/receipt.json', JSON.stringify({ name: pkg.name, version: pkg.version, sha: process.env.EXPECTED_SHA, sha256 }, null, 2));
 }
 function verifyArchive(pkg) {
+  if (process.env.PUBLISH !== 'true') throw new Error('Explicit publication mode required');
   const receipt = JSON.parse(fs.readFileSync('release/receipt.json'));
   const hash = createHash('sha256').update(fs.readFileSync('release/package.tgz')).digest('hex');
   if (hash !== receipt.sha256 || receipt.sha !== process.env.EXPECTED_SHA || receipt.name !== pkg.name || receipt.version !== pkg.version) throw new Error('Archive receipt mismatch');
+  assertApprovedArchive(process.env, hash);
   const packed = JSON.parse(execFileSync('tar', ['-xOf', 'release/package.tgz', 'package/package.json'], { encoding: 'utf8' }));
   assertContext(process.env, packed);
 }
@@ -65,4 +81,4 @@ if (require.main === module) {
     console.log('Release preflight passed; no publication performed by this script');
   })().catch(error => { console.error(error.message); process.exitCode = 1; });
 }
-module.exports = { assertContext };
+module.exports = { assertContext, assertApprovedArchive };

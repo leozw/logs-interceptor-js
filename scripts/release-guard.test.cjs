@@ -1,9 +1,25 @@
 const assert = require('node:assert/strict');
-const { assertContext } = require('../scripts/release-guard.cjs');
+const { assertContext, assertApprovedArchive } = require('../scripts/release-guard.cjs');
 const pkg = require('../package.json');
 const repo = pkg.repository.url.replace('git+https://github.com/', '').replace('.git', '');
-const env = { GITHUB_REPOSITORY: repo, GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', RUNNER_ENVIRONMENT: 'github-hosted', GITHUB_WORKFLOW_REF: repo + '/.github/workflows/release.yml@refs/heads/main', EXPECTED_SHA: 'a'.repeat(40), GITHUB_SHA: 'a'.repeat(40), EXPECTED_VERSION: pkg.version, CONFIRM: 'publish ' + pkg.name + '@' + pkg.version + ' next' };
+const env = { GITHUB_REPOSITORY: repo, GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', RUNNER_ENVIRONMENT: 'github-hosted', GITHUB_WORKFLOW_REF: repo + '/.github/workflows/release.yml@refs/heads/main', EXPECTED_SHA: 'a'.repeat(40), GITHUB_SHA: 'a'.repeat(40), EXPECTED_VERSION: pkg.version, PUBLISH: 'true', APPROVED_ARCHIVE_SHA256: 'b'.repeat(64), CONFIRM: 'publish ' + pkg.name + '@' + pkg.version + ' next' };
 assert.equal(assertContext(env, pkg), repo);
+const validation = { ...env, PUBLISH: 'false', APPROVED_ARCHIVE_SHA256: '', CONFIRM: 'validate ' + pkg.name + '@' + pkg.version + ' next' };
+assert.equal(assertContext(validation, pkg), repo);
+for (const value of [undefined, '', 'yes', true]) assert.throws(() => assertContext({ ...env, PUBLISH: value }, pkg));
+for (const value of [undefined, '', 'B'.repeat(64), 'b'.repeat(63), 'b'.repeat(64) + '\n']) assert.throws(() => assertContext({ ...env, APPROVED_ARCHIVE_SHA256: value }, pkg));
+for (const terminator of ['\n', '\r', '\u2028', '\u2029']) {
+  const value = 'b'.repeat(63) + terminator;
+  assert.equal(value.length, 64);
+  assert.throws(() => assertContext({ ...env, APPROVED_ARCHIVE_SHA256: value }, pkg));
+  assert.throws(() => assertApprovedArchive(env, value));
+}
+assert.throws(() => assertContext({ ...validation, APPROVED_ARCHIVE_SHA256: 'b'.repeat(64) }, pkg));
+assert.throws(() => assertContext({ ...validation, CONFIRM: env.CONFIRM }, pkg));
+assertApprovedArchive(env, 'b'.repeat(64));
+assertApprovedArchive(validation, 'c'.repeat(64));
+assert.throws(() => assertApprovedArchive(env, 'c'.repeat(64)));
+assert.throws(() => assertApprovedArchive(env, 'b'.repeat(63)));
 for (const change of [{ GITHUB_EVENT_NAME: 'push' }, { GITHUB_REF: 'refs/heads/other' }, { RUNNER_ENVIRONMENT: 'self-hosted' }, { EXPECTED_SHA: 'b'.repeat(40) }, { CONFIRM: 'publish' }, { GITHUB_REPOSITORY: 'other/repo' }, { GITHUB_WORKFLOW_REF: 'wrong' }]) assert.throws(() => assertContext({ ...env, ...change }, pkg));
 assert.throws(() => assertContext(env, { ...pkg, publishConfig: { ...pkg.publishConfig, provenance: false } }));
 assert.throws(() => assertContext(env, { ...pkg, repository: { url: 'wrong' } }));
@@ -11,6 +27,10 @@ assert.throws(() => assertContext(env, { ...pkg, publishConfig: { ...pkg.publish
 assert.throws(() => assertContext({ ...env, CONFIRM: 'publish ' + pkg.name + '@' + pkg.version }, pkg));
 const yaml = require('node:fs').readFileSync(require('node:path').join(__dirname, '../.github/workflows/release.yml'), 'utf8');
 assert.match(yaml, /workflow_dispatch:/);
+assert.match(yaml, /publish:\n\s+description:[^\n]+\n\s+required: true\n\s+default: false\n\s+type: boolean/);
+assert.match(yaml, /if: github.ref == 'refs\/heads\/main' && inputs.publish == true/);
+assert.match(yaml, /name: validated-npm-package\n\s+path: \|\n\s+release\/package\.tgz\n\s+release\/receipt\.json\n\s+if-no-files-found: error/);
+assert.equal((yaml.match(/actions\/upload-artifact@/g) || []).length, 1);
 assert.doesNotMatch(yaml, /\n  (push|pull_request|release|schedule|workflow_run):/);
 assert.equal((yaml.match(/NODE_AUTH_TOKEN:/g) || []).length, 1);
 assert.match(yaml, /npm publish \.\/release\/package\.tgz --ignore-scripts --provenance --access public/);

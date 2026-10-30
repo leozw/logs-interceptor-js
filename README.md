@@ -1,8 +1,9 @@
 # Elven Logs Interceptor
 
-Optional major-line candidate `2.0.1`, UNPUBLISHED and not yet qualified. Historical
-`2.0.0` audit archives are immutable and are not replaced. Promotion is coordinated separately
-and is restricted to the `next` dist-tag, not `latest`. Published `1.1.1` remains
+Optional major line `2.0.1`. Check [npm version availability](https://www.npmjs.com/package/elven-logs-interceptor/v/2.0.1)
+before selecting the exact version. Publication of this line is restricted to the
+`next` dist-tag, not `latest`; source qualification alone does not mean publication.
+Historical `2.0.0` audit archives are immutable and are not replaced. Published `1.1.1` remains
 immutable; its accepted custom RegExp configuration can block the event loop.
 Official [Node.js integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
 and [documentation source](https://github.com/elvenworks-ps/docs.elven.works).
@@ -16,6 +17,14 @@ Use a current security-patched Node 22/24/26 in production, not the historical
 minimum binary. Node 18/20 are EOL; see [Node releases](https://nodejs.org/en/about/previous-releases).
 The OTel generation remains `2.12.x` / `0.223.x`, not 3.x. CJS and native ESM
 imports remain supported; the package itself remains CommonJS.
+
+Independent synthetic qualification covered the public API and decoded telemetry
+on macOS ARM64 Node 22.0.0, 22.23.4, 24.22.2 and 26.13.0. The 44 completed
+queue-retention cases use two diagnostic harness versions; they are not a total
+RSS, universal object-ownership or overhead guarantee. An earlier isolated Node 26
+startup timeout remains unlocalized; the later instrumented pass does not explain
+it or establish a startup SLA. Application and other platform qualification are
+still required.
 
 `logs-interceptor@2.1.6` is a separate legacy npm identity, not an alias silently
 redirected by this package. Audit its API/config and migrate explicitly; the
