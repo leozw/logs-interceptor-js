@@ -1,4 +1,5 @@
 import { TraceFlags } from '@opentelemetry/api';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { SeverityNumber, type AnyValue, type LogAttributes } from '@opentelemetry/api-logs';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
 import { CompressionAlgorithm } from '@opentelemetry/otlp-exporter-base';
@@ -17,7 +18,7 @@ import {
 
 const instrumentationScope = {
   name: 'elven-logs-interceptor',
-  version: '2.0.0',
+  version: '2.0.1',
 };
 
 export class OtlpHttpTransport implements ILogTransport {
@@ -38,6 +39,7 @@ export class OtlpHttpTransport implements ILogTransport {
 
   private readonly matcher: MatcherPolicy;
   private readonly ownsMatcher: boolean;
+  private readonly operation = new AsyncLocalStorage<AbortSignal | undefined>();
   constructor(private readonly config: ResolvedLogsInterceptorConfig, matcher?: MatcherPolicy) {
     this.matcher = matcher ?? new MatcherPolicy(config.filter);
     this.ownsMatcher = !matcher;
@@ -51,22 +53,24 @@ export class OtlpHttpTransport implements ILogTransport {
       }, execution));
     } finally { execution.close(); }
     const transport = config.transport;
-    this.agents = boundedAgent(transport.timeout, transport.maxSockets, transport.enableConnectionPooling);
+    const timeout = Math.min(transport.timeout, transport.sendTimeoutMillis);
+    this.agents = boundedAgent(timeout, transport.maxSockets, transport.enableConnectionPooling, () => this.operation.getStore());
     this.exporter = new OTLPLogExporter({
       url: transport.logsUrl || appendLogsPath(transport.url),
       headers: transport.headers,
-      timeoutMillis: transport.timeout,
+      timeoutMillis: timeout,
       concurrencyLimit: Math.max(1, config.performance.maxConcurrentFlushes),
       compression: transport.compression === 'gzip'
         ? CompressionAlgorithm.GZIP
         : CompressionAlgorithm.NONE,
       keepAlive: transport.enableConnectionPooling,
       httpAgentOptions: this.agents.factory,
-      userAgent: 'elven-logs-interceptor/2.0.0',
+      userAgent: 'elven-logs-interceptor/2.0.1',
     });
   }
 
-  async send(entries: LogEntry[]): Promise<void> {
+  async send(entries: LogEntry[], signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     if (entries.length === 0) return;
 
     const startedAt = performance.now();
@@ -75,13 +79,14 @@ export class OtlpHttpTransport implements ILogTransport {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        this.exporter.export(records, (result) => {
+        this.operation.run(signal, () => this.exporter.export(records, (result) => {
+          if (signal?.aborted) { reject(signal.reason); return; }
           if (result.code === 0) {
             resolve();
             return;
           }
           reject(result.error ?? new Error('OTLP log export failed'));
-        });
+        }));
       });
 
       const duration = performance.now() - startedAt;
@@ -122,7 +127,7 @@ export class OtlpHttpTransport implements ILogTransport {
 
   async destroy(): Promise<void> {
     this.agents.destroy();
-    try { await this.exporter.shutdown(); } finally { if (this.ownsMatcher) this.matcher.close(); }
+    try { await this.exporter.shutdown(); } finally { this.operation.disable(); if (this.ownsMatcher) this.matcher.close(); }
   }
 
   private toReadableLogRecord(entry: LogEntry): ReadableLogRecord {

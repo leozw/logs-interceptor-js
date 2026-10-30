@@ -8,7 +8,8 @@ export interface ILogTransport {
   /**
    * Send logs to the transport destination
    */
-  send(entries: LogEntry[]): Promise<void>;
+  send(entries: LogEntry[], signal?: AbortSignal,
+    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void): Promise<void>;
 
   /**
    * Check if transport is available
@@ -32,6 +33,7 @@ export interface ILogTransport {
 }
 
 export interface TransportHealth {
+  readonly circuitBreakerState?: 'closed' | 'open' | 'half-open';
   readonly healthy: boolean;
   readonly lastSuccessfulSend?: number;
   readonly consecutiveFailures: number;
@@ -50,6 +52,11 @@ export interface TransportMetrics {
   retryAttempts?: number;
   retriedRequests?: number;
   dlqDroppedEntries?: number;
+  backpressureDeclines?: number;
+  deadlineExceeded?: number;
+  failedSendEntries?: number;
+  dlqEnqueuedEntries?: number;
+  unretainedSendEntries?: number;
 }
 
 

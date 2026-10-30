@@ -2,12 +2,11 @@
  * Infrastructure: Gzip Compressor Implementation
  * Asynchronous gzip compression
  */
-import { promisify } from 'util';
-import { gzip } from 'zlib';
+import { createGzip } from 'zlib';
 import { CompressorConfig, ICompressor } from '../../domain/interfaces/ICompressor';
 import { internalWarn } from '../../utils';
 
-const gzipAsync = promisify(gzip);
+import { compressStream } from './compressStream';
 
 export class GzipCompressor implements ICompressor {
   private readonly level: number;
@@ -16,15 +15,17 @@ export class GzipCompressor implements ICompressor {
     this.level = config.level ?? 6; // Balanced compression/speed
   }
 
-  async compress(data: string | Buffer): Promise<Buffer> {
+  async compress(data: string | Buffer, signal?: AbortSignal): Promise<Buffer> {
+    signal?.throwIfAborted();
     const input = typeof data === 'string' ? Buffer.from(data) : data;
 
     try {
-      return (await gzipAsync(input, {
+      return await compressStream(input, createGzip({
         level: this.level,
         chunkSize: 16 * 1024,
-      })) as Buffer;
+      }), signal);
     } catch (error) {
+      signal?.throwIfAborted();
       internalWarn('Gzip compression failed', error);
       throw error;
     }

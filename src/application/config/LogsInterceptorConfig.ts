@@ -13,6 +13,8 @@ export interface TransportConfig {
   readonly authToken?: string;
   readonly headers?: Record<string, string>;
   readonly timeout?: number;
+  /** Total send budget including attempts and Retry-After waits; 1..60000ms. */
+  readonly sendTimeoutMillis?: number;
   readonly maxRetries?: number;
   readonly retryDelay?: number;
   readonly compression?: 'none' | 'gzip' | 'brotli' | 'snappy' | boolean; // boolean for backward compat

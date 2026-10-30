@@ -23,6 +23,7 @@ export class ConfigService {
     const errors: string[] = [];
     const ranges: Array<[string, number | undefined, number, number]> = [
       ['transport.timeout', config.transport?.timeout, 1, 60_000],
+      ['transport.sendTimeoutMillis', config.transport?.sendTimeoutMillis, 1, 60_000],
       ['transport.maxRetries', config.transport?.maxRetries, 0, 5],
       ['transport.retryDelay', config.transport?.retryDelay, 0, 10_000],
       ['transport.maxWorkers', config.transport?.maxWorkers, 1, 16],
@@ -311,6 +312,7 @@ export class ConfigService {
       authToken: transport?.authToken ?? '',
       headers: transport?.headers ?? {},
       timeout: transport?.timeout ?? 5_000,
+      sendTimeoutMillis: transport?.sendTimeoutMillis ?? 30_000,
       maxRetries: transport?.maxRetries ?? 1,
       retryDelay: transport?.retryDelay ?? 1_000,
       compression,

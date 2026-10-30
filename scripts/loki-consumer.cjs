@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
     for (const value of ['synthetic-static-private', 'synthetic-context-private', 'PRIVATE_7312']) assert.equal(body.includes(Buffer.from(value)), false);
     const decoded = compression === 'snappy' ? pushType.toObject(pushType.decode(body)) : JSON.parse(body);
     const records = decoded.streams.reduce((sum, stream) => sum + (stream.values || stream.entries).length, 0);
-    assert.equal(records, 60); assert.equal(response.headers['user-agent'], 'elven-logs-interceptor/2.0.0');
+    assert.equal(records, 60); assert.equal(response.headers['user-agent'], 'elven-logs-interceptor/2.0.1');
     const base = logger.transport.transport;
     const workerMetrics = base.workerPool?.getMetrics();
     if (workers) assert.ok(workerMetrics.completedTasks >= 1);

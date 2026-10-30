@@ -377,9 +377,15 @@ export class LogService implements ILogger {
 
     const latencyMetrics = this.metricsCollector.getLatencyMetrics();
     const compressionMetrics = this.metricsCollector.getCompressionMetrics();
+    const transportMetrics = this.transport.getMetrics?.();
 
     return {
       ...this.metrics,
+      failedSendEntries: transportMetrics?.failedSendEntries ?? 0,
+      dlqEnqueuedEntries: transportMetrics?.dlqEnqueuedEntries ?? 0,
+      unretainedSendEntries: transportMetrics?.unretainedSendEntries ?? 0,
+      backpressureDeclines: transportMetrics?.backpressureDeclines ?? 0,
+      deadlineExceeded: transportMetrics?.deadlineExceeded ?? 0,
       bufferSize: this.buffer.size(),
       latency: {
         p50: latencyMetrics.p50,
@@ -400,12 +406,7 @@ export class LogService implements ILogger {
     const bufferMetrics = this.buffer.getMetrics();
     const transportHealth = this.transport.getHealth();
 
-    let circuitBreakerState: 'closed' | 'open' | 'half-open' = 'closed';
-    if (!transportHealth.healthy) {
-      circuitBreakerState = 'open';
-    } else if (transportHealth.errorMessage?.includes('HALF_OPEN')) {
-      circuitBreakerState = 'half-open';
-    }
+    const circuitBreakerState = transportHealth.circuitBreakerState ?? 'closed';
 
     return {
       healthy: this.metrics.errorCount < 10 && transportHealth.healthy && (this.filter.privacyDiagnostics?.().length ?? 0) === 0,

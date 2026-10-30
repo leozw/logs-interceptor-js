@@ -20,7 +20,7 @@ const config = url => ({ appName: 'clean-major-consumer', transport: { type: 'ot
 async function check(name, fn) { const start = performance.now(); const data = await fn(); results.push({ name, status: 'PASS', milliseconds: performance.now() - start, ...data }); }
 
 (async () => {
-  assert.equal(pkg.version, '2.0.0');
+  assert.equal(pkg.version, '2.0.1');
   await check('CJS and native ESM expose the existing public API', async () => {
     const esm = await import(pathToFileURL(entry));
     for (const name of ['init', 'getLogger', 'destroy', 'isInitialized', 'WinstonTransport', 'MorganAdapter', 'LogLevelVO']) {

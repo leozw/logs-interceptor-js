@@ -26,6 +26,11 @@ export interface ILogger {
 export interface LoggerMetrics {
   readonly logsProcessed: number;
   readonly logsDropped: number;
+  readonly failedSendEntries?: number;
+  readonly dlqEnqueuedEntries?: number;
+  readonly unretainedSendEntries?: number;
+  readonly backpressureDeclines?: number;
+  readonly deadlineExceeded?: number;
   readonly logsSanitized: number;
   readonly flushCount: number;
   readonly errorCount: number;

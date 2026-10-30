@@ -16,8 +16,10 @@ import { internalError, internalWarn } from '../../utils';
 import { WorkerPool } from '../workers';
 import { LOKI_PROTO } from './proto/loki-proto';
 import { consumeResponse } from './consumeResponse';
+import { retryAfterNotBefore } from './RetryAfter';
 
 interface RetryableTransportError extends Error {
+  retryAfterNotBefore?: number;
   statusCode?: number;
   retryable?: boolean;
 }
@@ -92,7 +94,9 @@ export class LokiProtobufTransport implements ILogTransport {
     }
   }
 
-  async send(entries: LogEntry[]): Promise<void> {
+  async send(entries: LogEntry[], signal?: AbortSignal,
+    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void): Promise<void> {
+    signal?.throwIfAborted();
     if (entries.length === 0) return;
     if (!this.PushRequest) throw new Error('Protobuf not initialized');
 
@@ -110,12 +114,13 @@ export class LokiProtobufTransport implements ILogTransport {
           const workerStart = performance.now();
           compressed = await this.workerPool.execute<Buffer>(
             'encodeProtobufAndCompress',
-            entries
+            entries, undefined, signal
           );
           compressedSize = compressed.length;
           compressionTime = performance.now() - workerStart;
           rawSize = entries.length * 150;
         } catch (error) {
+          signal?.throwIfAborted();
           internalWarn('LokiProtobufTransport worker failed, falling back to main thread', error);
           const fallback = await this.encodeMainThread(entries);
           compressed = fallback.compressed;
@@ -137,7 +142,7 @@ export class LokiProtobufTransport implements ILogTransport {
         'Content-Type': 'application/x-protobuf',
         'Content-Encoding': 'snappy',
         'X-Scope-OrgID': this.config.tenantId ?? '',
-        'User-Agent': 'elven-logs-interceptor/2.0.0',
+        'User-Agent': 'elven-logs-interceptor/2.0.1',
         ...this.extraHeaders,
       };
 
@@ -145,13 +150,17 @@ export class LokiProtobufTransport implements ILogTransport {
         headers.Authorization = `Bearer ${this.config.authToken}`;
       }
 
-      const response = await this.sendRequest(headers, compressed);
+      signal?.throwIfAborted();
+      const response = await this.sendRequest(headers, compressed, signal);
 
       if (response.statusCode >= 300) {
+        const notBefore = retryAfterNotBefore(response.headers['retry-after']);
+        if (response.statusCode === 429 || response.statusCode >= 500) observeRetryAfter?.(notBefore.notBefore, notBefore.invalid);
         await consumeResponse(response.body);
         throw this.createHttpError(
           `Loki responded with ${response.statusCode}`,
-          response.statusCode
+          response.statusCode,
+          notBefore.notBefore
         );
       }
 
@@ -168,14 +177,16 @@ export class LokiProtobufTransport implements ILogTransport {
     }
   }
 
-  private async sendRequest(headers: Record<string, string>, body: Buffer) {
+  private async sendRequest(headers: Record<string, string>, body: Buffer, signal?: AbortSignal) {
+    const deadline = AbortSignal.timeout(this.timeoutMs);
+    const abort = signal ? AbortSignal.any([signal, deadline]) : deadline;
     if (this.client) {
       return this.client.request({
         path: this.endpointPath,
         method: 'POST',
         headers,
         body,
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: abort,
       });
     }
 
@@ -183,17 +194,18 @@ export class LokiProtobufTransport implements ILogTransport {
       method: 'POST',
       headers,
       body,
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: abort,
       headersTimeout: this.timeoutMs,
       bodyTimeout: this.timeoutMs,
       maxRedirections: 0,
     });
   }
 
-  private createHttpError(message: string, statusCode: number): RetryableTransportError {
+  private createHttpError(message: string, statusCode: number, notBefore?: number): RetryableTransportError {
     const error = new Error(message) as RetryableTransportError;
     error.statusCode = statusCode;
     error.retryable = statusCode === 429 || statusCode >= 500;
+    if (error.retryable && notBefore !== undefined) error.retryAfterNotBefore = notBefore;
     return error;
   }
 

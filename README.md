@@ -1,6 +1,7 @@
 # Elven Logs Interceptor
 
-Optional major candidate `2.0.0`, UNPUBLISHED. Promotion is coordinated separately
+Optional major-line candidate `2.0.1`, UNPUBLISHED and not yet qualified. Historical
+`2.0.0` audit archives are immutable and are not replaced. Promotion is coordinated separately
 and is restricted to the `next` dist-tag, not `latest`. Published `1.1.1` remains
 immutable; its accepted custom RegExp configuration can block the event loop.
 Official [Node.js integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
@@ -33,15 +34,63 @@ Buffer memory accounting includes nested payloads but is an estimate, not a
 process RSS limit. Defaults retain 100 entries, 2 active and 2 queued batches;
 DLQ, retry, serialization, native compression and Workers use additional memory.
 Config rejects non-finite values and extreme queue, payload, timeout and worker
-sizes. Retries are capped to 5 and backoff to 30 seconds. Loki requests have a
+sizes. Retries are capped to 5; local base backoff is at most30seconds plus
+0..249ms jitter. Loki requests have a
 whole-request deadline and a 64 KiB response budget. Export operations suppress
 tracing to avoid tracing their own HTTP requests. Correlation IDs remain log
 fields instead of automatically creating one Loki stream per request. Custom
 dynamic labels still require a low-cardinality value set.
-`transport.maxRetries`/`retryDelay` control Loki retries. OTLP uses the upstream
-exporter's own bounded retry policy within its export deadline, not those Loki
+`transport.maxRetries`/`retryDelay` control the transport decorator's retries.
+OTLP additionally uses the upstream exporter's bounded retries within each export
+deadline. These are not identical retry algorithms or delivery guarantees. The
+decorator's total send budget below also bounds retries of an OTLP export. Other
+upstream retry options are not configured by those local
 settings; the 429 consumer control observes up to six attempts including the
 initial request even when the Elven `maxRetries` value is zero.
+
+### Backpressure And Send Budgets
+
+Loki JSON and protobuf honor `Retry-After` on retryable429/5xx responses. Valid
+nonnegative seconds and HTTP dates are converted to a monotonic minimum at header
+receipt. Separate valid fields use the greatest floor, including when another
+field is invalid; date commas are never split. Parsing examines at most8fields
+of128characters each. Oversized, malformed or ambiguous fields are ignored with
+fixed `ELVEN_INVALID_RETRY_AFTER` diagnostics, rate-limited per transport to10s;
+they never permanently disable delivery. Ordinary local backoff still applies.
+This bounded receiver policy follows the [HTTP date/delay forms](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3)
+with an explicit conservative maximum for repeated valid fields.
+
+`transport.sendTimeoutMillis` is a NEW total operation budget: default30000ms,
+configurable1..60000ms, including retries, backpressure waits and active attempts.
+A valid floor beyond the current operation's budget causes immediate fixed
+`ELVEN_RETRY_AFTER_DECLINED`, not an early retry or a60-second sleep. The shared
+floor belongs only to that owned transport, applies to concurrent/new sends even
+with `maxRetries:0`, and expires naturally. A syntactically valid positive delay
+too large to represent instead reports `ELVEN_RETRY_AFTER_UNREPRESENTABLE` and
+requires explicit reinitialization; no infinite or overflowed timer is created.
+Suppressed attempts do not create new circuit-breaker failures. Health reports
+backpressure separately from the actual breaker state. HTTP dates require a
+reasonably synchronized local UTC clock; this is not a remote clock-skew oracle.
+
+Cancellation is per operation: it aborts its network request or queued/active
+Worker task, not another request or the shared transport. Shutdown cancels all
+owned operations. Timers cannot preempt synchronous JavaScript or native work;
+already-running bounded native Snappy compression is awaited, then abort is
+checked before any network request. This is not a hard real-time wall-clock SLA.
+The native zlib stream is closed before cancellation settles. Existing capture,
+privacy, queue, pattern and Worker caps are unchanged.
+
+Migration: `logsProcessed` counts admission, not acknowledged delivery, and
+`logsDropped` retains its admission/backlog meaning. New `failedSendEntries`
+counts terminal unacknowledged batches, `dlqEnqueuedEntries` counts their entries
+accepted by the optional DLQ, and `unretainedSendEntries` counts the remainder.
+DLQ acceptance is cumulative, not current queue size or durability; entries may
+be evicted even within one batch. `unretainedSendEntries` concerns entries never
+accepted by that failure handler, not later DLQ eviction.
+`backpressureDeclines` and `deadlineExceeded` count operation outcomes. Existing
+`droppedByDlq` includes rejection/eviction and overlaps these counts, so do not
+sum all buckets as distinct losses. A failed ACK does not prove the server did
+not ingest a request; retries may duplicate records and the DLQ is not an ACK.
 
 Idle timers and Workers do not pin process exit. Manual drain defaults to a
 10-second deadline (`performance.shutdownTimeoutMillis`, maximum 60 seconds),
@@ -389,8 +438,9 @@ job receives `NPM_TOKEN`; `id-token: write` and `--provenance` remain mandatory.
 There are no push/tag publication triggers and no provenance fallback.
 
 An authorized maintainer must configure `NPM_TOKEN` in this package's matching
-GitHub repository before dispatch. No token was read, created or changed by the
-audit, and trusted-publisher configuration is not assumed. A coordinator token
+GitHub repository before dispatch. No credential is shipped in this package;
+this candidate's workflow has not been dispatched. Credential provisioning is
+separate, and trusted-publisher configuration is not assumed. A coordinator token
 in another repository does not establish this package's provenance. This
 2.x workflow candidate was prepared, not dispatched. See the [npm provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
 

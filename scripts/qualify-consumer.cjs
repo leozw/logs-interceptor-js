@@ -26,7 +26,7 @@ try {
   if (supplied) archive = path.resolve(supplied);
   else {
     const packs = JSON.parse(run('pack', 'npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', artifacts]));
-    if (packs.length !== 1 || packs[0].version !== '2.0.0' || !packs[0].files.some(file => file.path === 'dist/infrastructure/privacy/matcher-core.cjs')) throw new Error('Missing exact candidate/runtime core');
+    if (packs.length !== 1 || packs[0].version !== '2.0.1' || !packs[0].files.some(file => file.path === 'dist/infrastructure/privacy/matcher-core.cjs')) throw new Error('Missing exact candidate/runtime core');
     archive = path.join(artifacts, packs[0].filename);
   }
   fs.writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ private: true, name: 'isolated-elven-major-consumer', version: '0.0.0', dependencies: { 'elven-logs-interceptor': 'file:' + archive, winston: '3.19.0' } }));
@@ -42,6 +42,7 @@ const transport=new WinstonTransport({logger:handle});logger.withContext({id:1},
   run('native and generic malformed UTF-16 six-site whole-wire privacy', process.execPath, [path.join(__dirname, 'native-unicode-consumer.cjs'), consumer]);
   run('actual packed queue and native matcher backing-store ownership', process.execPath, [path.join(__dirname, 'retainer-consumer.cjs'), consumer]);
   run('Loki JSON/protobuf, all codecs and actual Workers', process.execPath, [path.join(__dirname, 'loki-consumer.cjs'), consumer]);
+  run('Loki Retry-After floors, cross-send declines, date and malformed-field recovery with all codecs and Workers', process.execPath, [path.join(__dirname, 'retry-after-consumer.cjs'), path.join(consumer, 'node_modules/elven-logs-interceptor')]);
   run('generate synthetic TLS fixture', 'openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(fixture, 'key.pem'), '-out', path.join(fixture, 'cert.pem'), '-subj', '/CN=localhost', '-days', '1', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1']);
   fs.chmodSync(path.join(fixture, 'key.pem'), 0o600);
   run('reject untrusted TLS', process.execPath, [path.join(__dirname, 'tls-consumer.cjs'), consumer, fixture, 'untrusted']);
