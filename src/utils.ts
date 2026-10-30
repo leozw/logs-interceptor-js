@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import { LogsInterceptorConfig } from './application/config/LogsInterceptorConfig';
+import { configSnapshot } from './application/config/ConfigSnapshot';
 import { LogLevel, LogLevelVO } from './domain/value-objects/LogLevel';
 import { boundedSnapshot } from './infrastructure/memory/BoundedSnapshot';
 import { MatcherPolicy, type MatcherExecution } from './infrastructure/privacy/MatcherPolicy';
@@ -654,6 +655,8 @@ export function mergeConfigs(
   userConfig: Partial<LogsInterceptorConfig>,
   envConfig: Partial<LogsInterceptorConfig>,
 ): Partial<LogsInterceptorConfig> {
+  userConfig = configSnapshot(userConfig);
+  envConfig = configSnapshot(envConfig);
   const transport =
     envConfig.transport || userConfig.transport
       ? ({

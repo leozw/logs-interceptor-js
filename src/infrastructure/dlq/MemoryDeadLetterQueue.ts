@@ -22,6 +22,9 @@ export class MemoryDeadLetterQueue implements IDeadLetterQueue {
   private droppedEntries = 0;
 
   constructor(maxSize: number = 1000) {
+    if (!Number.isSafeInteger(maxSize) || maxSize < 1 || maxSize > 10_000) {
+      throw new Error('ELVEN_DLQ_CAPACITY_BUDGET');
+    }
     this.maxSize = maxSize;
   }
 

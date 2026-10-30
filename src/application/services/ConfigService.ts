@@ -20,6 +20,7 @@ export class ConfigService {
    * Validate configuration
    */
   static validate(config: Partial<LogsInterceptorConfig>): string[] {
+    config = configSnapshot(config);
     const errors: string[] = [];
     const ranges: Array<[string, number | undefined, number, number]> = [
       ['transport.timeout', config.transport?.timeout, 1, 60_000],
@@ -60,7 +61,6 @@ export class ConfigService {
         1,
         60_000,
       ],
-      ['deadLetterQueue.maxSize', config.deadLetterQueue?.maxSize, 1, 10_000],
       [
         'performance.shutdownTimeoutMillis',
         config.performance?.shutdownTimeoutMillis,
@@ -81,6 +81,10 @@ export class ConfigService {
       ) {
         errors.push(`${name} must be finite and between ${min} and ${max}`);
       }
+    }
+    const dlqSize = config.deadLetterQueue?.maxSize;
+    if (dlqSize !== undefined && (!Number.isSafeInteger(dlqSize) || dlqSize < 1 || dlqSize > 10_000)) {
+      errors.push('deadLetterQueue.maxSize must be a safe integer between 1 and 10000');
     }
     for (const [name, labels] of [
       ['labels', config.labels],

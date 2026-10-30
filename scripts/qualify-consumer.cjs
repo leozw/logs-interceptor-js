@@ -50,6 +50,7 @@ const transport=new WinstonTransport({logger:handle});logger.withContext({id:1},
   for (const extension of ['cts', 'mts']) fs.writeFileSync(path.join(consumer, 'contract.' + extension), contract);
   run('strict typed CJS and ESM', process.execPath, [require.resolve('typescript/bin/tsc'), '--noEmit', '--strict', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--target', 'ES2022', '--types', 'node', '--typeRoots', path.join(repo, 'node_modules/@types'), path.join(consumer, 'contract.cts'), path.join(consumer, 'contract.mts')]);
   run('production runtime', process.execPath, [path.join(__dirname, 'consumer-runtime.cjs'), consumer]);
+  run('public config preflight, healthy logger preservation and direct DLQ capacity', process.execPath, [path.join(__dirname, 'config-preflight-consumer.cjs'), path.join(consumer, 'node_modules/elven-logs-interceptor')]);
   run('native and generic malformed UTF-16 six-site whole-wire privacy', process.execPath, [path.join(__dirname, 'native-unicode-consumer.cjs'), consumer]);
   run('actual packed queue and native matcher backing-store ownership', process.execPath, [path.join(__dirname, 'retainer-consumer.cjs'), consumer]);
   run('Loki JSON/protobuf, all codecs and actual Workers', process.execPath, [path.join(__dirname, 'loki-consumer.cjs'), consumer]);

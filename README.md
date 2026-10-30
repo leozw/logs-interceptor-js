@@ -210,6 +210,26 @@ remain administrator callbacks: their execution and deliberately retained
 closure/application graphs are not covered by queue-memory bounds. Async caller
 scope lifetime and caller-held originals are likewise not owned-queue storage.
 
+The public init path now snapshots caller data BEFORE merging or validation;
+direct merge/validation helpers apply the same boundary. Own enumerable map
+accessors are rejected without invoking them, before retiring
+the healthy logger. RegExp cloning uses native internal settings, ignoring caller
+source/flag accessors; dynamic-label callback identity remains unchanged. As
+before, inherited, non-enumerable and symbol map properties are not configuration
+data: they are ignored without reading their values. Indexed array items still
+use their own descriptors. No full own-key array is materialized by the map
+snapshot. This is not a sandbox for arbitrary Proxy traps or
+administrator callbacks. The historical290/source ordering receipt remains
+source-only, not a default privacy-leak or runtime queue finding.
+
+The deep-importable MemoryDeadLetterQueue also validates its own capacity:
+positive safe integers1..10000, default1000, fixed `ELVEN_DLQ_CAPACITY_BUDGET` on invalid input.
+The normal root API already rejected invalid capacity; this closes a conditional
+direct-component boundary, not a newly demonstrated unbounded facade queue.
+The root now also rejects fractional counts; valid integer capacity behavior is
+unchanged. Environment boolean parsing is unchanged;
+unknown sanitize values continue to use the configured/default true fallback.
+
 ## Quick Start
 
 ```ts

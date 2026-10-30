@@ -20,7 +20,10 @@ export function configSnapshot<T>(input: T): T {
     if (seen.has(value)) throw new Error(CODE);
     seen.add(value);
     if (value instanceof RegExp) {
-      const result = new RegExp(text(value.source), value.flags);
+      const source = Object.getOwnPropertyDescriptor(RegExp.prototype, 'source')!.get!.call(value) as string;
+      const ownedSource = text(source);
+      // The platform clone reads RegExp internal slots, not caller source/flag accessors.
+      const result = new RegExp(ownedSource, structuredClone(value).flags);
       seen.delete(value);
       return result;
     }
@@ -38,7 +41,7 @@ export function configSnapshot<T>(input: T): T {
     let keys = 0;
     for (const key in value) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor) continue;
+      if (!descriptor?.enumerable) continue;
       if (++keys > 64 || !('value' in descriptor)) throw new Error(CODE);
       result[text(key)] = visit(descriptor.value, depth + 1, providers || (depth === 0 && key === 'dynamicLabels'));
     }
