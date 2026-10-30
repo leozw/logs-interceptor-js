@@ -16,8 +16,8 @@
     "test:matcher": "node --test scripts/matcher-security.test.cjs scripts/matcher-contracts.test.cjs",
     "test:consumer": "node scripts/qualify-consumer.cjs",
     "test:watch": "node scripts/test-watch.cjs",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "dev": "ts-node src/index.ts",
     "prepublishOnly": "npm run lint && npm run build && npm test && npm run test:port && npm run test:matcher && npm run test:consumer"
   },

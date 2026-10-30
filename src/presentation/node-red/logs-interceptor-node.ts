@@ -41,6 +41,8 @@ export = function (RED: any) {
   function LogsInterceptorNode(this: any, config: NodeRedNode & NodeRedConfig) {
     RED.nodes.createNode(this, config);
 
+    // Node-RED callbacks retain the constructor's dynamically assigned node receiver.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const node: any = this;
     let logger: any = null;
     let initialized = false;

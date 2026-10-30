@@ -72,6 +72,22 @@ Suppressed attempts do not create new circuit-breaker failures. Health reports
 backpressure separately from the actual breaker state. HTTP dates require a
 reasonably synchronized local UTC clock; this is not a remote clock-skew oracle.
 
+Factory-owned Loki JSON/protobuf sends recheck the shared floor, operation
+deadline and cancellation AFTER asynchronous Worker/codec preparation. The final
+fresh eligibility check and request invocation run in the same synchronous turn,
+including after an awaited wait; no separate permission token can go stale in a
+queued microtask. This does not serialize independent requests. Requests admitted
+before a new floor are not retroactively recalled. Deep-imported raw codec classes
+do not own the decorator's cross-send retry policy; use the public logger/factory
+pipeline for these guarantees. OTLP's upstream retry policy remains distinct.
+
+Historical audit artifact fd9d484/2f76 is rejected: an actual public Brotli pair
+created a60-record request85.140875ms AFTER another call publicly acknowledged
+a60-second floor. The new post-preparation regression keeps the exact fixture,
+privacy and concurrency; it must decline both batches before A request creation.
+With DLQ disabled this means61 unacknowledged/unretained entries, not zero loss.
+Old v2 harness failure remains UNKNOWN; it is not retroactively qualified.
+
 Cancellation is per operation: it aborts its network request or queued/active
 Worker task, not another request or the shared transport. Shutdown cancels all
 owned operations. Timers cannot preempt synchronous JavaScript or native work;

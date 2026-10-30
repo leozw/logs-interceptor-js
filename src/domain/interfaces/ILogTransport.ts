@@ -1,5 +1,8 @@
 import { LogEntry } from '../entities/LogEntry';
 
+/** Invoke the actual request inside the owner's fresh deadline/backpressure check. */
+export type TransportDispatch = <T>(invokeRequest: () => Promise<T>) => Promise<T>;
+
 /**
  * Interface for log transport implementations
  * Follows Interface Segregation Principle
@@ -9,7 +12,8 @@ export interface ILogTransport {
    * Send logs to the transport destination
    */
   send(entries: LogEntry[], signal?: AbortSignal,
-    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void): Promise<void>;
+    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void,
+    dispatch?: TransportDispatch): Promise<void>;
 
   /**
    * Check if transport is available

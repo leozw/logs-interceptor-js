@@ -15,7 +15,7 @@ try {
     const controls = process.argv.includes('--port-controls');
     const args = process.argv.slice(2).filter(arg => arg !== '--port-controls');
     const files = controls ? [path.join(root, 'test-support/assertion-contracts.test.cjs')] : fs.readdirSync(path.join(output, 'src/__tests__')).filter(file => file.endsWith('.test.js')).sort().map(file => path.join(output, 'src/__tests__', file));
-    const run = spawnSync(process.execPath, ['--test', '--test-concurrency=1', ...args, ...files], { cwd: root, stdio: 'inherit', env: { ...process.env, ELVEN_TEST_OUTPUT: output } });
+    const run = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-timeout=30000', ...args, ...files], { cwd: root, stdio: 'inherit', env: { ...process.env, ELVEN_TEST_OUTPUT: output } });
     process.exitCode = run.status || (run.signal || run.error ? 1 : 0);
   }
 } finally { fs.rmSync(output, { recursive: true, force: true }); }

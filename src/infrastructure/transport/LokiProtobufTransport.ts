@@ -11,6 +11,7 @@ import {
   ILogTransport,
   TransportHealth,
   TransportMetrics,
+  TransportDispatch,
 } from '../../domain/interfaces/ILogTransport';
 import { internalError, internalWarn } from '../../utils';
 import { WorkerPool } from '../workers';
@@ -95,7 +96,8 @@ export class LokiProtobufTransport implements ILogTransport {
   }
 
   async send(entries: LogEntry[], signal?: AbortSignal,
-    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void): Promise<void> {
+    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void,
+    dispatch?: TransportDispatch): Promise<void> {
     signal?.throwIfAborted();
     if (entries.length === 0) return;
     if (!this.PushRequest) throw new Error('Protobuf not initialized');
@@ -151,7 +153,8 @@ export class LokiProtobufTransport implements ILogTransport {
       }
 
       signal?.throwIfAborted();
-      const response = await this.sendRequest(headers, compressed, signal);
+      const invokeRequest = () => this.sendRequest(headers, compressed, signal);
+      const response = await (dispatch ? dispatch(invokeRequest) : invokeRequest());
 
       if (response.statusCode >= 300) {
         const notBefore = retryAfterNotBefore(response.headers['retry-after']);

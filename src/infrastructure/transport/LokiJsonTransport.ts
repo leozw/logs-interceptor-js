@@ -9,6 +9,7 @@ import {
   ILogTransport,
   TransportHealth,
   TransportMetrics,
+  TransportDispatch,
 } from '../../domain/interfaces/ILogTransport';
 import { ICompressor } from '../compression';
 import { CompressorFactory } from '../compression/CompressorFactory';
@@ -98,7 +99,8 @@ export class LokiJsonTransport implements ILogTransport {
   }
 
   async send(entries: LogEntry[], signal?: AbortSignal,
-    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void): Promise<void> {
+    observeRetryAfter?: (notBefore: number | undefined, invalid: boolean) => void,
+    dispatch?: TransportDispatch): Promise<void> {
     signal?.throwIfAborted();
     if (entries.length === 0) return;
 
@@ -182,7 +184,8 @@ export class LokiJsonTransport implements ILogTransport {
       }
 
       signal?.throwIfAborted();
-      const response = await this.sendRequest(headers, body, signal);
+      const invokeRequest = () => this.sendRequest(headers, body, signal);
+      const response = await (dispatch ? dispatch(invokeRequest) : invokeRequest());
 
       if (response.statusCode >= 300) {
         const notBefore = retryAfterNotBefore(response.headers['retry-after']);

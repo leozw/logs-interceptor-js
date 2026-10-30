@@ -71,7 +71,8 @@ export class ResilientTransport implements ILogTransport {
     this.operations.add(controller);
     const operation = async () => logExportSuppression.run(true, () =>
       context.with(suppressTracing(context.active()), () => this.transport.send(entries, controller.signal,
-        (notBefore, invalid) => this.observeRetryAfter(notBefore, invalid))));
+        (notBefore, invalid) => this.observeRetryAfter(notBefore, invalid),
+        invokeRequest => this.dispatch(invokeRequest, deadline, controller.signal))));
     const operationWithRetry = async () => this.retryOperation(operation, deadline, controller.signal);
 
     try {
@@ -154,6 +155,19 @@ export class ResilientTransport implements ILogTransport {
     }
   }
 
+  private async dispatch<T>(invokeRequest: () => Promise<T>, deadline: number, signal: AbortSignal): Promise<T> {
+    while (true) {
+      await this.waitUntil(0, deadline, signal);
+      signal.throwIfAborted();
+      const now = performance.now();
+      if (now >= deadline) throw new Error('ELVEN_SEND_DEADLINE');
+      // Awaiting a resolved wait still yields: a queued response may have raised the floor.
+      if (this.notBefore > now) continue;
+      // No await between this final eligibility check and request invocation.
+      return invokeRequest();
+    }
+  }
+
   private async retryOperation<T>(operation: () => Promise<T>, deadline: number, signal: AbortSignal): Promise<T> {
     const maxRetries = this.config.maxRetries ?? 3;
     const delay = this.config.retryDelay ?? 1000;
@@ -176,6 +190,7 @@ export class ResilientTransport implements ILogTransport {
       } catch (error) {
         signal.throwIfAborted();
         const typedError = error as RetryableError;
+        if (typedError instanceof RetryAfterDeclined) throw typedError;
         this.observeRetryAfter(typedError.retryAfterNotBefore, false);
         if (this.notBefore >= deadline) {
           this.metrics.backpressureDeclines = (this.metrics.backpressureDeclines ?? 0) + 1;

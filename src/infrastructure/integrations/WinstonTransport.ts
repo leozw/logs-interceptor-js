@@ -25,7 +25,7 @@ export class WinstonTransport extends TransportStream {
     // We map roughly to fatal, error, warn, info, debug
 
     // Extract potential error object from meta
-    let context: Record<string, unknown> | undefined = meta;
+    const context: Record<string, unknown> | undefined = meta;
 
     // If meta has Splat/Symbol(splat), we might want to clean it up, 
     // but for now passing meta as context is standard.

@@ -80,6 +80,54 @@ test('malformed headers do not park future delivery; valid floors expire natural
   } finally { await expiring.destroy(); }
 });
 
+test('post-preparation dispatch rechecks a floor raised in the resolved-wait microtask gap', async () => {
+  let admissions = 0;
+  const sink = new ResilientTransport(base(async (_entries, _signal, observe, dispatch) => {
+    assert.ok(dispatch);
+    queueMicrotask(() => observe?.(performance.now() + 60_000, false));
+    await dispatch(async () => { admissions++; });
+  }), { maxRetries: 0, sendTimeoutMillis: 100 });
+  try {
+    await assert.rejects(sink.send(entries), /ELVEN_RETRY_AFTER_DECLINED/);
+    assert.equal(admissions, 0);
+    assert.equal(sink.getMetrics()?.backpressureDeclines, 1);
+    assert.equal(sink.getMetrics()?.failedSendEntries, 1);
+    assert.equal(sink.getMetrics()?.unretainedSendEntries, 1);
+  } finally { await sink.destroy(); }
+});
+
+test('post-preparation dispatch waits for a fresh finite floor and preserves invocation concurrency', async () => {
+  let calls = 0, admissions = 0, floor = 0;
+  let finish!: () => void;
+  const both = new Promise<void>(resolve => { finish = resolve; });
+  const sink = new ResilientTransport(base(async (_entries, _signal, observe, dispatch) => {
+    assert.ok(dispatch);
+    if (++calls === 1) queueMicrotask(() => { floor = performance.now() + 30; observe?.(floor, false); });
+    await dispatch(async () => {
+      assert.ok(performance.now() >= floor);
+      if (++admissions === 2) finish();
+      await both;
+    });
+  }), { maxRetries: 0, sendTimeoutMillis: 1000 });
+  try { await Promise.all([sink.send(entries), sink.send(entries)]); assert.equal(admissions, 2); }
+  finally { await sink.destroy(); }
+});
+
+test('post-preparation deadline and shutdown reject before request invocation', async () => {
+  let admissions = 0;
+  const timed = new ResilientTransport(base(async (_entries, _signal, _observe, dispatch) => {
+    await delay(40); assert.ok(dispatch);
+    await dispatch(async () => { admissions++; });
+  }), { maxRetries: 0, sendTimeoutMillis: 10 });
+  try { await assert.rejects(timed.send(entries), /ELVEN_SEND_DEADLINE/); assert.equal(admissions, 0); }
+  finally { await timed.destroy(); }
+  const stopped = new ResilientTransport(base(async (_entries, _signal, _observe, dispatch) => {
+    assert.ok(dispatch); queueMicrotask(() => { void stopped.destroy(); });
+    await dispatch(async () => { admissions++; });
+  }), { maxRetries: 0, sendTimeoutMillis: 100 });
+  await assert.rejects(stopped.send(entries), /closed/); assert.equal(admissions, 0);
+});
+
 test('concurrent sends recheck raised floor and operation deadline never destroys another call', async () => {
   const starts: number[] = [];
   let first = true;
@@ -206,6 +254,36 @@ test('actual JSON, protobuf and OTLP request cancellation is operation-local and
       assert.equal(sink.getMetrics()?.successfulSends, 2); assert.equal(sink.getMetrics()?.failedSends, 1);
     } finally {
       await sink.destroy(); server.closeAllConnections();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  }
+});
+
+test('actual JSON/protobuf requests admitted before a concurrent floor may complete without shared cancellation', async () => {
+  for (const compression of ['none', 'snappy'] as const) {
+    let arrived!: () => void, release!: () => void, requests = 0;
+    const arrival = new Promise<void>(resolve => { arrived = resolve; });
+    const server = createServer((req, res) => {
+      req.resume(); req.once('end', () => {
+        if (++requests === 1) { release = () => { if (!res.writableEnded) { res.writeHead(200); res.end(); } }; arrived(); }
+        else { res.writeHead(429, { 'Retry-After': '60' }); res.end(); }
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const config = ConfigService.resolve({ appName: 'admitted-wire', transport: {
+      type: 'loki', compression, useWorkers: false, timeout: 2000, sendTimeoutMillis: 1000, maxRetries: 0,
+      url: `http://127.0.0.1:${(server.address() as { port: number }).port}/push`,
+    }, buffer: { autoFlush: false }, circuitBreaker: { enabled: false } });
+    const sink = TransportFactory.create(config);
+    const record = { ...entries[0], timestamp: new Date().toISOString() };
+    const admitted = sink.send([record]).then(() => 'completed', error => error);
+    try {
+      await arrival;
+      await assert.rejects(sink.send([{ ...record, id: 'floor' }]), /ELVEN_RETRY_AFTER_DECLINED/);
+      release(); assert.equal(await admitted, 'completed'); assert.equal(requests, 2);
+      assert.equal(sink.getMetrics()?.successfulSends, 1); assert.equal(sink.getMetrics()?.failedSendEntries, 1);
+    } finally {
+      release?.(); await sink.destroy(); await admitted; server.closeAllConnections();
       await new Promise<void>(resolve => server.close(() => resolve()));
     }
   }
