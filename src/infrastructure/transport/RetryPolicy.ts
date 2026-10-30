@@ -112,5 +112,17 @@ export class RetryGate {
       });
     }
   }
+  async dispatch<T>(deadline: number, signal: AbortSignal, invoke: () => Promise<T>): Promise<T> {
+    for (;;) {
+      await this.wait(deadline, signal);
+      // A different send can install a floor while the awaited wait resolves.
+      signal.throwIfAborted();
+      if (this.degraded) throw new Error(RETRY_CODES.huge);
+      const now = performance.now();
+      if (now >= deadline) throw new Error(RETRY_CODES.deadline);
+      if (this.notBefore > now) continue;
+      return invoke();
+    }
+  }
   close(): void { this.lifecycle.abort(new Error(RETRY_CODES.cancelled)); }
 }

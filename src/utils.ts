@@ -353,7 +353,7 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
   }
   
   if (env.LOGS_INTERCEPTOR_SANITIZE) {
-    filter.sanitize = env.LOGS_INTERCEPTOR_SANITIZE.toLowerCase() === 'true';
+    filter.sanitize = parseSanitizeEnv(env.LOGS_INTERCEPTOR_SANITIZE);
   }
   
   if (Object.keys(filter).length > 0) {
@@ -385,6 +385,11 @@ export function loadConfigFromEnv(): Partial<LogsInterceptorConfig> {
   }
   
   return config;
+}
+
+/** Unknown environment values retain sanitation; only a recognized false opts out. */
+export function parseSanitizeEnv(value: string | undefined): boolean {
+  return value?.toLowerCase() !== 'false';
 }
 
 /**

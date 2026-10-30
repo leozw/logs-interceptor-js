@@ -8,6 +8,7 @@ import { LogLevel } from './domain/value-objects/LogLevel';
 import { LogsInterceptorFactory } from './presentation/factory/LogsInterceptorFactory';
 import { loadConfigFromEnv, mergeConfigs } from './utils';
 import { MatcherPolicy } from './infrastructure/privacy/MatcherPolicy';
+import { ownedConfiguration } from './infrastructure/memory/OwnedConfiguration';
 
 export * from './infrastructure/integrations';
 
@@ -20,6 +21,11 @@ let globalInstance: ILogger | null = null;
 export function init(
   userConfig: Partial<LogsInterceptorConfig> = {}
 ): ILogger {
+  if (userConfig === null || typeof userConfig !== 'object' || Array.isArray(userConfig) || userConfig instanceof RegExp) {
+    throw new Error('ELVEN_LEGACY_CONFIG_UNSUPPORTED');
+  }
+  // Admit the caller DTO before any merge can evaluate an enumerable accessor.
+  userConfig = ownedConfiguration(userConfig);
   // Load configuration from environment
   const envConfig = loadConfigFromEnv();
 
