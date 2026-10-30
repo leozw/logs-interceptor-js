@@ -64,13 +64,23 @@ subscribe('undici:request:headers', message => { if (ours(message)) events.push(
   const outcome = promise => promise.then(() => ({ status: 'resolved', at: performance.now() }), error => ({ status: 'rejected', error: error.message, at: performance.now() }));
   const a = outcome(logger.flush()); logger.info(bCaller.message, bCaller.context);
   const b = outcome(logger.flush());
-  const [aResult, bResult] = await Promise.all([a, b]); await delay(1500);
+  // Establish the public floor acknowledgement before starting the suppression window.
+  const bResult = await b;
+  assert.equal(bResult.status, 'rejected'); assert.equal(bResult.error, 'ELVEN_RETRY_AFTER_DECLINED');
+  const bHeader = events.find(event => event.kind === 'response:headers' && event.status === 429);
+  assert.ok(bHeader && bHeader.at <= bResult.at);
+  assert.equal(requests.length, 1); assert.equal(requests[0].marker, 'B');
+  const windowStartAt = performance.now(), windowStopAt = windowStartAt + 1500;
+  assert.ok(bResult.at <= windowStartAt);
+  const window = (async () => { while (performance.now() < windowStopAt) await delay(Math.ceil(windowStopAt - performance.now())); return performance.now(); })();
+  const aResult = await a, windowEndAt = await window;
   const metrics = logger.getMetrics();
   assert.equal(fatal, undefined); assert.equal(requests.length, 1);
   assert.equal(events.filter(event => event.kind === 'request:create').length, 1);
+  assert.equal(events.filter(event => event.kind === 'request:create' && event.at > bResult.at).length, 0);
+  assert.equal(events.find(event => event.kind === 'request:create').id, bHeader.id);
   assert.equal(events.filter(event => event.kind === 'response:headers' && event.status === 429).length, 1);
   assert.equal(aResult.status, 'rejected'); assert.equal(aResult.error, 'ELVEN_RETRY_AFTER_DECLINED');
-  assert.equal(bResult.status, 'rejected'); assert.equal(bResult.error, 'ELVEN_RETRY_AFTER_DECLINED');
   assert.equal(hash(JSON.stringify(caller)), callerHash); assert.equal(hash(JSON.stringify(bCaller)), bHash);
   assert.equal(hash(JSON.stringify(config)), configHash);
   assert.equal(metrics.logsProcessed, 61); assert.equal(metrics.logsDropped, 0);
@@ -82,6 +92,7 @@ subscribe('undici:request:headers', message => { if (ours(message)) events.push(
   for (const [channel, fn] of subscriptions) channel.unsubscribe(fn);
   console.log(JSON.stringify({ status: 'PASS', node: process.version, scope: 'Exact v3 fixture/default privacy, LokiJSON/Brotli; ONE pair, no A network admission',
     callerHash, callerUnchanged: true, bCallerUnchanged: true, configUnchanged: true, a: aResult, b: bResult, events, requests,
+    suppressionWindow: { publicBHeaderAt: bHeader.at, publicBFloorAckAt: bResult.at, startAt: windowStartAt, endAt: windowEndAt, requestedMillis: 1500, onlyKnownBRequestCreated: true, createdAfterPublicFloorAck: 0 },
     counts: { processed: metrics.logsProcessed, admissionDropped: metrics.logsDropped, failedSendEntries: metrics.failedSendEntries, unretainedSendEntries: metrics.unretainedSendEntries, dlqEnqueuedEntries: metrics.dlqEnqueuedEntries, backpressureDeclines: metrics.backpressureDeclines },
     cleanup: { destroyResolved, serverClosed, subscriptionsRemoved: subscriptions.length }, noZeroLossClaim: true }));
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
