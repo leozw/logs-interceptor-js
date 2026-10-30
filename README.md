@@ -8,6 +8,15 @@ immutable; its accepted custom RegExp configuration can block the event loop.
 Official [Node.js integration guide](https://docs.elven.works/elven-observability/integracao-e-instrumentacao/javascript/instrumentacao-node.js-com-elven-observability.html)
 and [documentation source](https://github.com/elvenworks-ps/docs.elven.works).
 
+Release record (2026-10-30): `2.0.1` is published by `elven_observability` to
+`next`; `latest` remained `1.1.1`. The public archive SHA256 is
+`16e525d9fb8cc3e03717b7fe08fc41cca7eadac82f0c782938a8c8e4bb5a6d51`,
+with source commit `5842952c91aaaa052121cb7e3e6bc6ced0a39f86` and
+[hosted provenance](https://github.com/leozw/logs-interceptor-js/actions/runs/41059681169).
+The immutable package README records the pre-dispatch build snapshot; the
+maintainer instructions below are the current Git documentation, not replacement
+package bytes.
+
 ## Compatibility And Limits
 
 This optional major requires Node `>=22.0.0`. The actual 22.0.0 binary has passed
@@ -473,7 +482,11 @@ audits run separately; a clean audit is not a claim that all vulnerabilities are
 known or absent.
 
 The manual `.github/workflows/release.yml` accepts only `main`, an exact current
-SHA, `2.x` version and `publish elven-logs-interceptor@VERSION next` confirmation.
+SHA and a `2.x` version. It defaults to validation only, with
+`validate elven-logs-interceptor@VERSION next` confirmation and no publication
+credential job. Review its exact two-file artifact before a separate dispatch
+with `publish=true`, `approved_archive_sha256` and
+`publish elven-logs-interceptor@VERSION next` confirmation.
 It requires successful Node 22/24/26 and actual minimum 22.0.0 main-push CI for
 that SHA, a public matching repository, separate clean production/development
 audits and the validated
@@ -483,11 +496,13 @@ job receives `NPM_TOKEN`; `id-token: write` and `--provenance` remain mandatory.
 There are no push/tag publication triggers and no provenance fallback.
 
 An authorized maintainer must configure `NPM_TOKEN` in this package's matching
-GitHub repository before dispatch. No credential is shipped in this package;
-this candidate's workflow has not been dispatched. Credential provisioning is
+GitHub repository before a publication dispatch. No credential is shipped in
+this package. Credential provisioning is
 separate, and trusted-publisher configuration is not assumed. A coordinator token
 in another repository does not establish this package's provenance. This
-2.x workflow candidate was prepared, not dispatched. See the [npm provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
+2.x workflow published the exact approved archive in the hosted run linked above.
+Do not retry an uncertain publication blindly or replace an existing version.
+See the [npm provenance requirements](https://docs.npmjs.com/generating-provenance-statements/).
 
 The legacy `logs-interceptor@2.1.6` is a separate identity, not an npm alias.
 Do not substitute it without translating `LOGS_INTERCEPTOR_*` configuration and
